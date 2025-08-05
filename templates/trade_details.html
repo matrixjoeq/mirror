@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}交易详情 - 趋势交易跟踪系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- 返回按钮 -->
+        <div class="mb-3">
+            <a href="{{ url_for('trades') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> 返回交易列表
+            </a>
+        </div>
+        
+        <!-- 交易概览 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-file-earmark-text"></i> 交易概览 - {{ trade.symbol_name }} ({{ trade.symbol_code }})
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <h6 class="text-muted">交易状态</h6>
+                        {% if trade.status == 'open' %}
+                            <span class="badge bg-success fs-6">持仓中</span>
+                        {% else %}
+                            <span class="badge bg-info fs-6">已平仓</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <h6 class="text-muted">开仓日期</h6>
+                        <span class="fw-bold">{{ trade.open_date }}</span>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <h6 class="text-muted">平仓日期</h6>
+                        {% if trade.close_date %}
+                            <span class="fw-bold">{{ trade.close_date }}</span>
+                        {% else %}
+                            <span class="text-muted">未平仓</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <h6 class="text-muted">持仓天数</h6>
+                        {% if trade.holding_days %}
+                            <span class="fw-bold">{{ trade.holding_days }} 天</span>
+                        {% else %}
+                            <span class="fw-bold text-primary">持仓中</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <h6 class="text-muted">买入信息</h6>
+                        <div>总买入: <span class="fw-bold">{{ trade.total_buy_quantity }} 股</span></div>
+                        <div>总投入: <span class="fw-bold">¥{{ "%.3f"|format(trade.total_buy_amount) }}</span></div>
+                        <div>平均价: <span class="fw-bold">¥{{ "%.3f"|format(trade.total_buy_amount / trade.total_buy_quantity) }}</span></div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <h6 class="text-muted">卖出信息</h6>
+                        {% if trade.total_sell_quantity > 0 %}
+                            <div>总卖出: <span class="fw-bold">{{ trade.total_sell_quantity }} 股</span></div>
+                            <div>总回收: <span class="fw-bold">¥{{ "%.3f"|format(trade.total_sell_amount) }}</span></div>
+                            <div>平均价: <span class="fw-bold">¥{{ "%.3f"|format(trade.total_sell_amount / trade.total_sell_quantity) }}</span></div>
+                        {% else %}
+                            <div class="text-muted">尚未卖出</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <h6 class="text-muted">盈亏信息</h6>
+                        <div>剩余持仓: <span class="fw-bold text-primary">{{ trade.remaining_quantity }} 股</span></div>
+                        <div>盈亏金额: 
+                            {% if trade.total_profit_loss > 0 %}
+                                <span class="fw-bold text-success">+¥{{ "%.3f"|format(trade.total_profit_loss) }}</span>
+                            {% elif trade.total_profit_loss < 0 %}
+                                <span class="fw-bold text-danger">¥{{ "%.3f"|format(trade.total_profit_loss) }}</span>
+                            {% else %}
+                                <span class="fw-bold text-muted">¥0.000</span>
+                            {% endif %}
+                        </div>
+                        <div>盈亏比例: 
+                            {% if trade.total_profit_loss_pct > 0 %}
+                                <span class="fw-bold text-success">+{{ "%.2f"|format(trade.total_profit_loss_pct) }}%</span>
+                            {% elif trade.total_profit_loss_pct < 0 %}
+                                <span class="fw-bold text-danger">{{ "%.2f"|format(trade.total_profit_loss_pct) }}%</span>
+                            {% else %}
+                                <span class="fw-bold text-muted">0.00%</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                {% if trade.status == 'open' and trade.remaining_quantity > 0 %}
+                <hr>
+                <div class="text-center">
+                    <a href="{{ url_for('add_sell', trade_id=trade.id) }}" class="btn btn-warning">
+                        <i class="bi bi-dash-circle"></i> 卖出股份
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- 交易明细 -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-list-ol"></i> 交易明细
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>序号</th>
+                                <th>交易类型</th>
+                                <th>交易价格</th>
+                                <th>交易数量</th>
+                                <th>交易金额</th>
+                                <th>交易日期</th>
+                                <th>盈亏金额</th>
+                                <th>盈亏比例</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if details %}
+                                {% for detail in details %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>
+                                        {% if detail.transaction_type == 'buy' %}
+                                            <span class="badge bg-success">买入</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">卖出</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>¥{{ "%.3f"|format(detail.price) }}</td>
+                                    <td>{{ detail.quantity }} 股</td>
+                                    <td>¥{{ "%.3f"|format(detail.amount) }}</td>
+                                    <td>{{ detail.transaction_date }}</td>
+                                    <td>
+                                        {% if detail.transaction_type == 'sell' %}
+                                            {% if detail.profit_loss > 0 %}
+                                                <span class="text-success fw-bold">+¥{{ "%.3f"|format(detail.profit_loss) }}</span>
+                                            {% elif detail.profit_loss < 0 %}
+                                                <span class="text-danger fw-bold">¥{{ "%.3f"|format(detail.profit_loss) }}</span>
+                                            {% else %}
+                                                <span class="text-muted">¥0.000</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if detail.transaction_type == 'sell' %}
+                                            {% if detail.profit_loss_pct > 0 %}
+                                                <span class="text-success fw-bold">+{{ "%.2f"|format(detail.profit_loss_pct) }}%</span>
+                                            {% elif detail.profit_loss_pct < 0 %}
+                                                <span class="text-danger fw-bold">{{ "%.2f"|format(detail.profit_loss_pct) }}%</span>
+                                            {% else %}
+                                                <span class="text-muted">0.00%</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted">
+                                        暂无交易明细
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        {% if details %}
+        <!-- 交易统计 -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-graph-up"></i> 买入统计
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        {% set buy_details = details | selectattr("transaction_type", "equalto", "buy") | list %}
+                        {% if buy_details %}
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <h6 class="text-primary">{{ buy_details | length }}</h6>
+                                    <small class="text-muted">买入次数</small>
+                                </div>
+                                <div class="col-4">
+                                    <h6 class="text-primary">{{ buy_details | sum(attribute='quantity') }}</h6>
+                                    <small class="text-muted">买入总量</small>
+                                </div>
+                                <div class="col-4">
+                                    <h6 class="text-primary">¥{{ "%.3f"|format(buy_details | sum(attribute='amount')) }}</h6>
+                                    <small class="text-muted">投入总额</small>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-graph-down"></i> 卖出统计
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        {% set sell_details = details | selectattr("transaction_type", "equalto", "sell") | list %}
+                        {% if sell_details %}
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <h6 class="text-warning">{{ sell_details | length }}</h6>
+                                    <small class="text-muted">卖出次数</small>
+                                </div>
+                                <div class="col-4">
+                                    <h6 class="text-warning">{{ sell_details | sum(attribute='quantity') }}</h6>
+                                    <small class="text-muted">卖出总量</small>
+                                </div>
+                                <div class="col-4">
+                                    <h6 class="text-warning">¥{{ "%.3f"|format(sell_details | sum(attribute='amount')) }}</h6>
+                                    <small class="text-muted">回收总额</small>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="text-center text-muted">
+                                尚未进行卖出操作
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
