@@ -64,7 +64,7 @@ def run_unit_tests():
     
     # 创建测试套件
     suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(TestTradingTracker))
+    suite.addTest(unittest.TestLoader().loadTestsFromTestCase(TestTradingTracker))
     
     # 运行测试
     runner = unittest.TextTestRunner(verbosity=2)
@@ -83,7 +83,7 @@ def run_functional_tests():
     
     # 创建测试套件
     suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(TestTradingWorkflows))
+    suite.addTest(unittest.TestLoader().loadTestsFromTestCase(TestTradingWorkflows))
     
     # 运行测试
     runner = unittest.TextTestRunner(verbosity=2)
@@ -102,7 +102,7 @@ def run_integration_tests():
     
     # 创建测试套件
     suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(TestSystemIntegration))
+    suite.addTest(unittest.TestLoader().loadTestsFromTestCase(TestSystemIntegration))
     
     # 运行测试
     runner = unittest.TextTestRunner(verbosity=2)

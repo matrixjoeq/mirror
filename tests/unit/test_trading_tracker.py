@@ -33,11 +33,18 @@ class TestTradingTracker(unittest.TestCase):
         self.tracker = TradingTracker(self.temp_db.name)
         
         # 创建测试策略
-        self.test_strategy_id = self.tracker.create_strategy(
+        success, message = self.tracker.create_strategy(
             name="测试策略",
             description="用于单元测试的策略",
             tag_names=["测试"]
         )
+        if success:
+            # 获取创建的策略ID
+            strategies = self.tracker.get_all_strategies()
+            test_strategy = next((s for s in strategies if s['name'] == "测试策略"), None)
+            self.test_strategy_id = test_strategy['id'] if test_strategy else 1
+        else:
+            self.test_strategy_id = 1
     
     def tearDown(self):
         """测试后清理 - 删除临时数据库"""
@@ -181,12 +188,12 @@ class TestTradingTracker(unittest.TestCase):
     def test_add_buy_transaction(self):
         """测试买入交易添加"""
         trade_id = self.tracker.add_buy_transaction(
-            strategy_id=self.test_strategy_id,
+            strategy=self.test_strategy_id,
             symbol_code="TEST001",
             symbol_name="测试标的",
             price=Decimal('10.50'),
             quantity=1000,
-            date='2025-01-01',
+            transaction_date='2025-01-01',
             buy_reason="测试买入",
             transaction_fee=Decimal('5.00')
         )
@@ -194,7 +201,9 @@ class TestTradingTracker(unittest.TestCase):
         self.assertIsNotNone(trade_id)
         
         # 验证交易是否正确创建
-        trade = self.tracker.get_trade_by_id(trade_id)
+        # 获取交易记录
+        trades = self.tracker.get_all_trades()
+        trade = next((t for t in trades if t['id'] == trade_id), None)
         self.assertEqual(trade['symbol_code'], "TEST001")
         self.assertEqual(trade['symbol_name'], "测试标的")
         self.assertEqual(trade['strategy_id'], self.test_strategy_id)
@@ -205,12 +214,12 @@ class TestTradingTracker(unittest.TestCase):
         """测试卖出交易和盈亏计算"""
         # 先添加买入交易
         trade_id = self.tracker.add_buy_transaction(
-            strategy_id=self.test_strategy_id,
+            strategy=self.test_strategy_id,
             symbol_code="TEST002",
             symbol_name="测试卖出标的",
             price=Decimal('20.00'),
             quantity=500,
-            date='2025-01-01',
+            transaction_date='2025-01-01',
             transaction_fee=Decimal('10.00')
         )
         
@@ -219,14 +228,16 @@ class TestTradingTracker(unittest.TestCase):
             trade_id=trade_id,
             price=Decimal('25.00'),
             quantity=500,
-            date='2025-01-15',
+            transaction_date='2025-01-15',
             sell_reason="测试卖出",
             trade_log="测试交易日志",
             transaction_fee=Decimal('12.50')
         )
         
         # 验证盈亏计算
-        trade = self.tracker.get_trade_by_id(trade_id)
+        # 获取交易记录
+        trades = self.tracker.get_all_trades()
+        trade = next((t for t in trades if t['id'] == trade_id), None)
         self.assertEqual(trade['status'], 'closed')
         
         # 预期盈亏：(25.00 - 20.00) * 500 - 10.00 - 12.50 = 2500 - 22.50 = 2477.50
@@ -241,12 +252,12 @@ class TestTradingTracker(unittest.TestCase):
         """测试部分卖出交易"""
         # 添加买入交易
         trade_id = self.tracker.add_buy_transaction(
-            strategy_id=self.test_strategy_id,
+            strategy=self.test_strategy_id,
             symbol_code="TEST003",
             symbol_name="部分卖出测试",
             price=Decimal('15.00'),
             quantity=1000,
-            date='2025-01-01',
+            transaction_date='2025-01-01',
             transaction_fee=Decimal('7.50')
         )
         
@@ -255,13 +266,15 @@ class TestTradingTracker(unittest.TestCase):
             trade_id=trade_id,
             price=Decimal('18.00'),
             quantity=500,
-            date='2025-01-10',
+            transaction_date='2025-01-10',
             sell_reason="部分卖出",
             transaction_fee=Decimal('9.00')
         )
         
         # 验证交易状态和数量
-        trade = self.tracker.get_trade_by_id(trade_id)
+        # 获取交易记录
+        trades = self.tracker.get_all_trades()
+        trade = next((t for t in trades if t['id'] == trade_id), None)
         self.assertEqual(trade['status'], 'open')  # 还有500股未卖出
         self.assertEqual(trade['remaining_quantity'], 500)
         self.assertEqual(trade['total_sell_quantity'], 500)
@@ -270,18 +283,18 @@ class TestTradingTracker(unittest.TestCase):
         """测试同一策略下同一标的的多次买入合并"""
         # 第一次买入
         trade_id = self.tracker.add_buy_transaction(
-            strategy_id=self.test_strategy_id,
+            strategy=self.test_strategy_id,
             symbol_code="TEST004",
             symbol_name="多次买入测试",
             price=Decimal('12.00'),
             quantity=300,
-            date='2025-01-01',
+            transaction_date='2025-01-01',
             transaction_fee=Decimal('3.60')
         )
         
         # 第二次买入（应该合并到同一交易记录）
         second_trade_id = self.tracker.add_buy_transaction(
-            strategy_id=self.test_strategy_id,
+            strategy=self.test_strategy_id,
             symbol_code="TEST004",
             symbol_name="多次买入测试",
             price=Decimal('13.00'),
@@ -294,7 +307,9 @@ class TestTradingTracker(unittest.TestCase):
         self.assertEqual(trade_id, second_trade_id)
         
         # 验证合并后的数据
-        trade = self.tracker.get_trade_by_id(trade_id)
+        # 获取交易记录
+        trades = self.tracker.get_all_trades()
+        trade = next((t for t in trades if t['id'] == trade_id), None)
         self.assertEqual(trade['total_buy_quantity'], 500)  # 300 + 200
         expected_total_amount = Decimal('12.00') * 300 + Decimal('13.00') * 200  # 3600 + 2600 = 6200
         self.assertEqual(trade['total_buy_amount'], expected_total_amount)
@@ -318,12 +333,12 @@ class TestTradingTracker(unittest.TestCase):
         """测试有交易策略的评分计算"""
         # 添加一个盈利交易
         trade_id1 = self.tracker.add_buy_transaction(
-            strategy_id=self.test_strategy_id,
+            strategy=self.test_strategy_id,
             symbol_code="SCORE001",
             symbol_name="评分测试1",
             price=Decimal('10.00'),
             quantity=100,
-            date='2025-01-01',
+            transaction_date='2025-01-01',
             transaction_fee=Decimal('1.00')
         )
         
@@ -331,7 +346,7 @@ class TestTradingTracker(unittest.TestCase):
             trade_id=trade_id1,
             price=Decimal('15.00'),
             quantity=100,
-            date='2025-01-02',  # 持仓1天
+            transaction_date='2025-01-02',  # 持仓1天
             sell_reason="评分测试卖出",
             trade_log="盈利交易",
             transaction_fee=Decimal('1.50')
@@ -339,7 +354,7 @@ class TestTradingTracker(unittest.TestCase):
         
         # 添加一个亏损交易
         trade_id2 = self.tracker.add_buy_transaction(
-            strategy_id=self.test_strategy_id,
+            strategy=self.test_strategy_id,
             symbol_code="SCORE002",
             symbol_name="评分测试2",
             price=Decimal('20.00'),
@@ -379,18 +394,22 @@ class TestTradingTracker(unittest.TestCase):
     def test_strategy_score_edge_cases(self):
         """测试策略评分的边界情况"""
         # 创建一个只有亏损交易的策略
-        loss_strategy_id = self.tracker.create_strategy(
+        success, message = self.tracker.create_strategy(
             name="纯亏损策略",
             description="只有亏损交易的策略"
         )
+        # 获取创建的策略ID
+        strategies = self.tracker.get_all_strategies()
+        loss_strategy = next((s for s in strategies if s['name'] == "纯亏损策略"), None)
+        loss_strategy_id = loss_strategy['id'] if loss_strategy else 2
         
         trade_id = self.tracker.add_buy_transaction(
-            strategy_id=loss_strategy_id,
+            strategy=loss_strategy_id,
             symbol_code="LOSS001",
             symbol_name="亏损测试",
             price=Decimal('50.00'),
             quantity=100,
-            date='2025-01-01',
+            transaction_date='2025-01-01',
             transaction_fee=Decimal('5.00')
         )
         
@@ -398,7 +417,7 @@ class TestTradingTracker(unittest.TestCase):
             trade_id=trade_id,
             price=Decimal('40.00'),
             quantity=100,
-            date='2025-01-02',
+            transaction_date='2025-01-02',
             sell_reason="亏损卖出",
             trade_log="测试亏损",
             transaction_fee=Decimal('4.00')
@@ -420,35 +439,35 @@ class TestTradingTracker(unittest.TestCase):
         # 测试无效价格
         with self.assertRaises((ValueError, TypeError)):
             self.tracker.add_buy_transaction(
-                strategy_id=self.test_strategy_id,
+                strategy=self.test_strategy_id,
                 symbol_code="INVALID",
                 symbol_name="无效测试",
                 price=Decimal('-10.00'),  # 负价格
                 quantity=100,
-                date='2025-01-01'
+                transaction_date='2025-01-01'
             )
         
         # 测试无效数量
         with self.assertRaises((ValueError, TypeError)):
             self.tracker.add_buy_transaction(
-                strategy_id=self.test_strategy_id,
+                strategy=self.test_strategy_id,
                 symbol_code="INVALID",
                 symbol_name="无效测试",
                 price=Decimal('10.00'),
                 quantity=-100,  # 负数量
-                date='2025-01-01'
+                transaction_date='2025-01-01'
             )
     
     def test_validate_sell_transaction_data(self):
         """测试卖出交易数据验证"""
         # 先创建一个买入交易
         trade_id = self.tracker.add_buy_transaction(
-            strategy_id=self.test_strategy_id,
+            strategy=self.test_strategy_id,
             symbol_code="VALID",
             symbol_name="有效测试",
             price=Decimal('10.00'),
             quantity=100,
-            date='2025-01-01'
+            transaction_date='2025-01-01'
         )
         
         # 测试卖出数量超过持仓
@@ -457,7 +476,7 @@ class TestTradingTracker(unittest.TestCase):
                 trade_id=trade_id,
                 price=Decimal('12.00'),
                 quantity=200,  # 超过持仓100股
-                date='2025-01-02'
+                transaction_date='2025-01-02'
             )
     
     def test_date_validation(self):
@@ -465,17 +484,19 @@ class TestTradingTracker(unittest.TestCase):
         # 这个测试取决于具体的日期验证实现
         # 如果系统支持多种日期格式，需要相应调整测试
         trade_id = self.tracker.add_buy_transaction(
-            strategy_id=self.test_strategy_id,
+            strategy=self.test_strategy_id,
             symbol_code="DATE_TEST",
             symbol_name="日期测试",
             price=Decimal('10.00'),
             quantity=100,
-            date='2025-01-01'  # 标准格式
+            transaction_date='2025-01-01'  # 标准格式
         )
         
         self.assertIsNotNone(trade_id)
         
-        trade = self.tracker.get_trade_by_id(trade_id)
+        # 获取交易记录
+        trades = self.tracker.get_all_trades()
+        trade = next((t for t in trades if t['id'] == trade_id), None)
         self.assertEqual(trade['open_date'], '2025-01-01')
 
 
