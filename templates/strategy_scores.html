@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+
+{% block title %}策略评分 - 多策略交易跟踪系统{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-award"></i> 策略评分概览
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    基于胜率、盈亏比和交易频率三个维度的策略表现评分系统。
+                    总分≥26分为完美，≥23分为优秀，≥20分为良好，≥18分为合格。
+                </p>
+                <div class="text-center">
+                    <a href="{{ url_for('symbol_comparison') }}" class="btn btn-outline-info btn-sm me-2">
+                        <i class="bi bi-bar-chart-steps"></i> 按标的比较策略
+                    </a>
+                    <a href="{{ url_for('time_comparison') }}" class="btn btn-outline-warning btn-sm">
+                        <i class="bi bi-calendar-range"></i> 按时间段比较策略
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    {% for strategy_id, score in scores.items() %}
+    {% set colors = ['primary', 'success', 'warning', 'info', 'danger', 'secondary'] %}
+    {% set color_idx = loop.index0 % colors|length %}
+    {% set color = colors[color_idx] %}
+    <div class="col-md-6 col-lg-3 mb-4">
+        <div class="card h-100 border-{{ color }}">
+            <div class="card-header text-center text-white bg-{{ color }}">
+                <h6 class="card-title mb-0">{{ score.strategy_name }}</h6>
+                {% if score.strategy_tags %}
+                <div class="mt-1">
+                    {% for tag in score.strategy_tags %}
+                    <span class="badge bg-light text-dark small">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <div class="mt-2">
+                    <span class="badge bg-light text-dark fs-6">{{ score.total_score }}分</span>
+                </div>
+                <small class="opacity-75">{{ score.rating }}</small>
+            </div>
+            <div class="card-body">
+                <!-- 三角评分图 -->
+                <div class="text-center mb-3">
+                    <canvas id="triangle-{{ strategy_id }}" width="180" height="160"></canvas>
+                </div>
+                
+                <!-- 详细得分 -->
+                <div class="row text-center small">
+                    <div class="col-4">
+                        <div class="mb-1">
+                            <strong>{{ score.win_rate_score }}</strong>
+                        </div>
+                        <div class="text-muted">胜率</div>
+                        <div class="progress mt-1" style="height: 4px;">
+                            <div class="progress-bar bg-success" style="width: {{ score.win_rate_score * 10 }}%"></div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="mb-1">
+                            <strong>{{ score.profit_loss_ratio_score }}</strong>
+                        </div>
+                        <div class="text-muted">盈亏比</div>
+                        <div class="progress mt-1" style="height: 4px;">
+                            <div class="progress-bar bg-warning" style="width: {{ score.profit_loss_ratio_score * 10 }}%"></div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="mb-1">
+                            <strong>{{ score.frequency_score }}</strong>
+                        </div>
+                        <div class="text-muted">频率</div>
+                        <div class="progress mt-1" style="height: 4px;">
+                            <div class="progress-bar bg-info" style="width: {{ score.frequency_score * 12.5 }}%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 基础统计 -->
+                <hr>
+                <div class="row text-center small">
+                    <div class="col-6">
+                        <div><strong>{{ score.stats.total_trades }}</strong></div>
+                        <div class="text-muted">交易数</div>
+                    </div>
+                    <div class="col-6">
+                        <div><strong>{{ score.stats.win_rate }}%</strong></div>
+                        <div class="text-muted">胜率</div>
+                    </div>
+                </div>
+                
+                <div class="row text-center small mt-2">
+                    <div class="col-6">
+                        <div><strong>{{ score.stats.avg_profit_loss_ratio }}:1</strong></div>
+                        <div class="text-muted">盈亏比</div>
+                    </div>
+                    <div class="col-6">
+                        <div><strong>{{ score.stats.avg_holding_days }}天</strong></div>
+                        <div class="text-muted">持仓</div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer text-center">
+                <a href="{{ url_for('strategy_detail', strategy_id=strategy_id) }}" 
+                   class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-eye"></i> 查看详情
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- 评分说明 -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-info-circle"></i> 评分说明
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6>胜率评分 (0-10分)</h6>
+                        <p class="small text-muted">
+                            胜率百分比除以10。如：60%胜率得6分，100%胜率得10分。
+                        </p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>盈亏比评分 (0-10分)</h6>
+                        <p class="small text-muted">
+                            盈亏比<1:1得0分，>10:1得10分，其他情况得分等于盈亏比数值。
+                        </p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>频率评分 (0-8分)</h6>
+                        <p class="small text-muted">
+                            基于平均持仓天数：≤1天得8分，≤7天得7分，≤30天得6分，依次递减。
+                        </p>
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-md-12">
+                        <h6>总分评级</h6>
+                        <div class="d-flex justify-content-around">
+                            <span class="badge bg-danger">不合格: <18分</span>
+                            <span class="badge bg-warning">合格: 18-19分</span>
+                            <span class="badge bg-info">良好: 20-22分</span>
+                            <span class="badge bg-success">优秀: 23-25分</span>
+                            <span class="badge bg-primary">完美: ≥26分</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 绘制三角评分图
+    {% for strategy_id, score in scores.items() %}
+    drawTriangleScore('triangle-{{ strategy_id }}', 
+                     {{ score.win_rate_score }}, 
+                     {{ score.profit_loss_ratio_score }}, 
+                     {{ score.frequency_score }});
+    {% endfor %}
+});
+
+function drawTriangleScore(canvasId, winRate, profitRatio, frequency) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext('2d');
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2 + 10; // 向下偏移以留出顶部标签空间
+    const radius = 55;
+    
+    // 清除画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 三角形顶点坐标
+    const points = [
+        { x: centerX, y: centerY - radius, label: '胜率' },           // 顶部
+        { x: centerX - radius * Math.sin(Math.PI / 3), y: centerY + radius * Math.cos(Math.PI / 3), label: '盈亏比' },  // 左下
+        { x: centerX + radius * Math.sin(Math.PI / 3), y: centerY + radius * Math.cos(Math.PI / 3), label: '频率' }   // 右下
+    ];
+    
+    // 绘制外框三角形
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    ctx.lineTo(points[1].x, points[1].y);
+    ctx.lineTo(points[2].x, points[2].y);
+    ctx.closePath();
+    ctx.strokeStyle = '#dee2e6';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // 绘制网格线
+    for (let i = 1; i <= 4; i++) {
+        const scale = i / 5;
+        ctx.beginPath();
+        ctx.moveTo(
+            centerX + (points[0].x - centerX) * scale, 
+            centerY + (points[0].y - centerY) * scale
+        );
+        ctx.lineTo(
+            centerX + (points[1].x - centerX) * scale, 
+            centerY + (points[1].y - centerY) * scale
+        );
+        ctx.lineTo(
+            centerX + (points[2].x - centerX) * scale, 
+            centerY + (points[2].y - centerY) * scale
+        );
+        ctx.closePath();
+        ctx.strokeStyle = '#f8f9fa';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+    
+    // 计算数据点位置
+    const maxScore = [10, 10, 8]; // 胜率、盈亏比、频率的最大分值
+    const scores = [winRate, profitRatio, frequency];
+    const ratios = scores.map((score, i) => score / maxScore[i]);
+    
+    // 计算实际得分点的坐标
+    const dataPoint = {
+        x: centerX + 
+           (points[0].x - centerX) * ratios[0] * (1/3) + 
+           (points[1].x - centerX) * ratios[1] * (1/3) + 
+           (points[2].x - centerX) * ratios[2] * (1/3),
+        y: centerY + 
+           (points[0].y - centerY) * ratios[0] * (1/3) + 
+           (points[1].y - centerY) * ratios[1] * (1/3) + 
+           (points[2].y - centerY) * ratios[2] * (1/3)
+    };
+    
+    // 绘制数据三角形
+    ctx.beginPath();
+    ctx.moveTo(
+        centerX + (points[0].x - centerX) * ratios[0],
+        centerY + (points[0].y - centerY) * ratios[0]
+    );
+    ctx.lineTo(
+        centerX + (points[1].x - centerX) * ratios[1],
+        centerY + (points[1].y - centerY) * ratios[1]
+    );
+    ctx.lineTo(
+        centerX + (points[2].x - centerX) * ratios[2],
+        centerY + (points[2].y - centerY) * ratios[2]
+    );
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(13, 110, 253, 0.3)';
+    ctx.fill();
+    ctx.strokeStyle = '#0d6efd';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // 绘制数据点
+    scores.forEach((score, i) => {
+        const ratio = ratios[i];
+        const x = centerX + (points[i].x - centerX) * ratio;
+        const y = centerY + (points[i].y - centerY) * ratio;
+        
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, 2 * Math.PI);
+        ctx.fillStyle = '#0d6efd';
+        ctx.fill();
+    });
+    
+    // 添加标签
+    ctx.fillStyle = '#495057';
+    ctx.font = '11px Arial';
+    ctx.textAlign = 'center';
+    
+    points.forEach((point, i) => {
+        let labelY, scoreY;
+        if (i === 0) { // 顶部标签
+            labelY = point.y - 20;
+            scoreY = point.y - 8;
+        } else { // 底部标签
+            labelY = point.y + 15;
+            scoreY = point.y + 27;
+        }
+        ctx.fillText(point.label, point.x, labelY);
+        ctx.fillText(scores[i].toString(), point.x, scoreY);
+    });
+}
+</script>
+{% endblock %}

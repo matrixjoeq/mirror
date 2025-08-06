@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}{{ symbol_name }} - 策略比较{% endblock %}
+
+{% block content %}
+<!-- 标的总体信息 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-diagram-2"></i> {{ symbol_code }} - {{ symbol_name }} 策略比较
+                    <a href="{{ url_for('symbol_comparison') }}" class="btn btn-outline-secondary btn-sm float-end">
+                        <i class="bi bi-arrow-left"></i> 返回标的列表
+                    </a>
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    横向比较不同策略在 <strong>{{ symbol_name }} ({{ symbol_code }})</strong> 上的表现，
+                    帮助您选择最适合该标的的交易策略。
+                </p>
+                
+                <!-- 策略评分概览 -->
+                {% set best_strategy = strategy_scores | selectattr('total_score', 'equalto', (strategy_scores | map(attribute='total_score') | max)) | first %}
+                <div class="row">
+                    {% set strategy_colors = {
+                        'trend': {'color': 'primary', 'icon': 'graph-up'},
+                        'rotation': {'color': 'success', 'icon': 'arrow-repeat'},
+                        'grid': {'color': 'warning', 'icon': 'grid'},
+                        'arbitrage': {'color': 'info', 'icon': 'diagram-3'}
+                    } %}
+                    
+                    {% for score in strategy_scores %}
+                    <div class="col-md-3 col-sm-6 text-center mb-3">
+                        <div class="card border-{{ strategy_colors[score.strategy_code]['color'] }} {% if best_strategy and score.strategy_code == best_strategy.strategy_code %}border-3{% endif %} position-relative">
+                            {% if best_strategy and score.strategy_code == best_strategy.strategy_code %}
+                            <div class="position-absolute top-0 start-50 translate-middle">
+                                <span class="badge bg-warning text-dark best-strategy-badge">🏆 最佳</span>
+                            </div>
+                            {% endif %}
+                            <div class="card-body p-2 pt-3">
+                                <i class="bi bi-{{ strategy_colors[score.strategy_code]['icon'] }} text-{{ strategy_colors[score.strategy_code]['color'] }} fs-4"></i>
+                                <div class="small">{{ score.strategy_name }}</div>
+                                <div class="h5 mb-1 
+                                    {% if score.total_score >= 23 %}text-success
+                                    {% elif score.total_score >= 20 %}text-info
+                                    {% elif score.total_score >= 18 %}text-warning
+                                    {% else %}text-danger{% endif %}">
+                                    {{ score.total_score }}分
+                                </div>
+                                <div class="badge 
+                                    {% if score.total_score >= 26 %}bg-primary
+                                    {% elif score.total_score >= 23 %}bg-success
+                                    {% elif score.total_score >= 20 %}bg-info
+                                    {% elif score.total_score >= 18 %}bg-warning
+                                    {% else %}bg-danger{% endif %}">
+                                    {{ score.rating }}
+                                </div>
+                                {% if best_strategy and score.strategy_code == best_strategy.strategy_code %}
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        交易: {{ score.stats.total_trades }}笔 | 胜率: {{ score.stats.win_rate }}%
+                                    </small>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 策略详细比较 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-table"></i> 策略详细比较
+                </h6>
+            </div>
+            <div class="card-body">
+                {% if strategy_scores %}
+                <!-- 排序控制 -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">排序方式:</label>
+                        <select class="form-select form-select-sm" id="sortSelect" onchange="updateSort()">
+                            <option value="total_score" {{ 'selected' if sort_by == 'total_score' else '' }}>总分</option>
+                            <option value="win_rate_score" {{ 'selected' if sort_by == 'win_rate_score' else '' }}>胜率得分</option>
+                            <option value="profit_loss_ratio_score" {{ 'selected' if sort_by == 'profit_loss_ratio_score' else '' }}>盈亏比得分</option>
+                            <option value="frequency_score" {{ 'selected' if sort_by == 'frequency_score' else '' }}>频率得分</option>
+                            <option value="strategy_code" {{ 'selected' if sort_by == 'strategy_code' else '' }}>策略名称</option>
+                            <option value="win_rate" {{ 'selected' if sort_by == 'win_rate' else '' }}>胜率</option>
+                            <option value="avg_profit_loss_ratio" {{ 'selected' if sort_by == 'avg_profit_loss_ratio' else '' }}>盈亏比</option>
+                            <option value="avg_holding_days" {{ 'selected' if sort_by == 'avg_holding_days' else '' }}>持仓天数</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">排序顺序:</label>
+                        <select class="form-select form-select-sm" id="orderSelect" onchange="updateSort()">
+                            <option value="desc" {{ 'selected' if sort_order == 'desc' else '' }}>降序</option>
+                            <option value="asc" {{ 'selected' if sort_order == 'asc' else '' }}>升序</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- 表格 -->
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>策略</th>
+                                <th>总分</th>
+                                <th>评级</th>
+                                <th>胜率得分</th>
+                                <th>盈亏比得分</th>
+                                <th>频率得分</th>
+                                <th>交易数</th>
+                                <th>胜率</th>
+                                <th>盈亏比</th>
+                                <th>持仓天数</th>
+                                <th>交易费用</th>
+                                <th>费用占比</th>
+                                <th>三角图</th>
+                                <th>推荐度</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for score in strategy_scores %}
+                            <tr class="{% if loop.index == 1 %}table-success{% endif %}">
+                                <td>
+                                    <i class="bi bi-{{ strategy_colors[score.strategy_code]['icon'] }} text-{{ strategy_colors[score.strategy_code]['color'] }}"></i>
+                                    <strong>{{ score.strategy_name }}</strong><br>
+                                    <small class="text-muted">{{ score.strategy_code }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge 
+                                        {% if score.total_score >= 26 %}bg-primary
+                                        {% elif score.total_score >= 23 %}bg-success
+                                        {% elif score.total_score >= 20 %}bg-info
+                                        {% elif score.total_score >= 18 %}bg-warning
+                                        {% else %}bg-danger{% endif %}">
+                                        {{ score.total_score }}分
+                                    </span>
+                                </td>
+                                <td>{{ score.rating }}</td>
+                                <td>{{ score.win_rate_score }}</td>
+                                <td>{{ score.profit_loss_ratio_score }}</td>
+                                <td>{{ score.frequency_score }}</td>
+                                <td>{{ score.stats.total_trades }}</td>
+                                <td>{{ score.stats.win_rate }}%</td>
+                                <td>{{ score.stats.avg_profit_loss_ratio }}:1</td>
+                                <td>{{ score.stats.avg_holding_days }}</td>
+                                <td>{{ score.stats.total_transaction_fees }}</td>
+                                <td>{{ score.stats.total_fee_ratio }}%</td>
+                                <td>
+                                    <canvas id="triangle-{{ score.strategy_code }}" width="80" height="70"></canvas>
+                                </td>
+                                <td>
+                                    {% if loop.index == 1 %}
+                                    <span class="badge bg-success">👑 最佳</span>
+                                    {% elif score.total_score >= 20 %}
+                                    <span class="badge bg-info">推荐</span>
+                                    {% elif score.total_score >= 18 %}
+                                    <span class="badge bg-warning">可考虑</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">不建议</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                    <h5>暂无数据</h5>
+                    <p>该标的还没有已平仓的交易记录</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 策略分析建议 -->
+{% if strategy_scores %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-lightbulb"></i> 策略分析建议
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>表现分析</h6>
+                        {% set best = strategy_scores[0] %}
+                        {% set worst = strategy_scores[-1] %}
+                        <ul class="small">
+                            <li><strong>最佳策略</strong>：{{ best.strategy_name }} ({{ best.total_score }}分)</li>
+                            {% if best.total_score >= 23 %}
+                            <li class="text-success">该策略在此标的上表现优秀，建议重点使用</li>
+                            {% elif best.total_score >= 18 %}
+                            <li class="text-info">该策略在此标的上表现合格，可以考虑使用</li>
+                            {% else %}
+                            <li class="text-warning">所有策略在此标的上表现一般，需要谨慎</li>
+                            {% endif %}
+                            <li><strong>待改进策略</strong>：{{ worst.strategy_name }} ({{ worst.total_score }}分)</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>投资建议</h6>
+                        <ul class="small">
+                            {% if best.total_score >= 23 %}
+                            <li class="text-success">建议优先使用 {{ best.strategy_name }} 进行交易</li>
+                            {% endif %}
+                            {% set good_strategies = strategy_scores | selectattr('total_score', '>=', 20) | list %}
+                            {% if good_strategies | length > 1 %}
+                            <li class="text-info">可考虑组合使用多个优秀策略分散风险</li>
+                            {% endif %}
+                            {% if best.win_rate_score < 6 %}
+                            <li class="text-warning">注意控制胜率，建议优化入场时机</li>
+                            {% endif %}
+                            {% if best.profit_loss_ratio_score < 6 %}
+                            <li class="text-warning">注意优化盈亏比，建议调整止盈止损点</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 绘制各策略的小三角图
+    {% for score in strategy_scores %}
+    drawTriangleScore('triangle-{{ score.strategy_code }}', 
+                     {{ score.win_rate_score }}, 
+                     {{ score.profit_loss_ratio_score }}, 
+                     {{ score.frequency_score }}, 
+                     false);
+    {% endfor %}
+});
+
+function drawTriangleScore(canvasId, winRate, profitRatio, frequency, showLabels = false) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const centerX = canvas.width / 2;
+    const centerY = (canvas.height / 2) + (showLabels ? 15 : 0);
+    const radius = showLabels ? 65 : 25;
+    
+    // 清除画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 三角形顶点坐标
+    const points = [
+        { x: centerX, y: centerY - radius, label: '胜率' },
+        { x: centerX - radius * Math.sin(Math.PI / 3), y: centerY + radius * Math.cos(Math.PI / 3), label: '盈亏比' },
+        { x: centerX + radius * Math.sin(Math.PI / 3), y: centerY + radius * Math.cos(Math.PI / 3), label: '频率' }
+    ];
+    
+    // 绘制外框三角形
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    ctx.lineTo(points[1].x, points[1].y);
+    ctx.lineTo(points[2].x, points[2].y);
+    ctx.closePath();
+    ctx.strokeStyle = '#dee2e6';
+    ctx.lineWidth = showLabels ? 2 : 1;
+    ctx.stroke();
+    
+    // 计算数据点位置
+    const maxScore = [10, 10, 8];
+    const scores = [winRate, profitRatio, frequency];
+    const ratios = scores.map((score, i) => score / maxScore[i]);
+    
+    // 绘制数据三角形
+    ctx.beginPath();
+    ctx.moveTo(
+        centerX + (points[0].x - centerX) * ratios[0],
+        centerY + (points[0].y - centerY) * ratios[0]
+    );
+    ctx.lineTo(
+        centerX + (points[1].x - centerX) * ratios[1],
+        centerY + (points[1].y - centerY) * ratios[1]
+    );
+    ctx.lineTo(
+        centerX + (points[2].x - centerX) * ratios[2],
+        centerY + (points[2].y - centerY) * ratios[2]
+    );
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(13, 110, 253, 0.3)';
+    ctx.fill();
+    ctx.strokeStyle = '#0d6efd';
+    ctx.lineWidth = showLabels ? 2 : 1;
+    ctx.stroke();
+    
+    // 绘制数据点
+    scores.forEach((score, i) => {
+        const ratio = ratios[i];
+        const x = centerX + (points[i].x - centerX) * ratio;
+        const y = centerY + (points[i].y - centerY) * ratio;
+        
+        ctx.beginPath();
+        ctx.arc(x, y, showLabels ? 4 : 2, 0, 2 * Math.PI);
+        ctx.fillStyle = '#0d6efd';
+        ctx.fill();
+    });
+}
+
+function updateSort() {
+    const sortBy = document.getElementById('sortSelect').value;
+    const order = document.getElementById('orderSelect').value;
+    const url = new URL(window.location);
+    url.searchParams.set('sort', sortBy);
+    url.searchParams.set('order', order);
+    window.location.href = url.toString();
+}
+</script>
+{% endblock %}

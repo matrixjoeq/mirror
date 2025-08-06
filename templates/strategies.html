@@ -1,0 +1,441 @@
+{% extends "base.html" %}
+
+{% block title %}策略管理 - 多策略交易跟踪系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="bi bi-diagram-3"></i> 策略管理</h2>
+            <div>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left"></i> 返回首页
+                </a>
+                <a href="{{ url_for('create_strategy') }}" class="btn btn-success">
+                    <i class="bi bi-plus-circle"></i> 新建策略
+                </a>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card border-primary">
+                    <div class="card-body text-center">
+                        <h4 class="text-primary">{{ strategies|length }}</h4>
+                        <p class="text-muted mb-0">活跃策略数量</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card border-success">
+                    <div class="card-body text-center">
+                        <h4 class="text-success">{{ tags|length }}</h4>
+                        <p class="text-muted mb-0">可用标签数量</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if strategies %}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-list-ul"></i> 策略列表
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID</th>
+                                <th>策略名称</th>
+                                <th>描述</th>
+                                <th>标签</th>
+                                <th>交易数量</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for strategy in strategies %}
+                            <tr>
+                                <td>{{ strategy.id }}</td>
+                                <td>
+                                    <strong>{{ strategy.name }}</strong>
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ strategy.description[:50] }}{{ '...' if strategy.description and strategy.description|length > 50 else '' }}</small>
+                                </td>
+                                <td>
+                                    {% for tag in strategy.tags %}
+                                        {% if tag %}
+                                            <span class="badge bg-secondary me-1">{{ tag }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    {% if strategy.trade_count > 0 %}
+                                        <span class="badge bg-info">{{ strategy.trade_count }}</span>
+                                    {% else %}
+                                        <span class="text-muted">0</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>{{ strategy.created_at[:10] }}</small>
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('edit_strategy', strategy_id=strategy.id) }}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-pencil"></i> 编辑
+                                        </a>
+                                        {% if strategy.trade_count == 0 %}
+                                        <button class="btn btn-sm btn-outline-danger delete-strategy-btn" 
+                                                data-strategy-id="{{ strategy.id }}" 
+                                                data-strategy-name="{{ strategy.name }}">
+                                            <i class="bi bi-trash"></i> 删除
+                                        </button>
+                                        {% else %}
+                                        <button class="btn btn-sm btn-outline-secondary" disabled title="有关联交易，无法删除">
+                                            <i class="bi bi-lock"></i> 锁定
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info text-center" role="alert">
+            <i class="bi bi-info-circle"></i> 
+            暂无策略，<a href="{{ url_for('create_strategy') }}">点击这里创建第一个策略</a>。
+        </div>
+        {% endif %}
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-tags"></i> 标签管理
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for tag in tags %}
+                            <div class="tag-item d-inline-flex align-items-center">
+                                <span class="badge {{ 'bg-primary' if tag.is_predefined else 'bg-secondary' }} d-flex align-items-center" 
+                                      id="tag-{{ tag.id }}">
+                                    <span class="tag-name">{{ tag.name }}</span>
+                                    <small class="ms-1">({{ tag.usage_count }})</small>
+                                    {% if not tag.is_predefined %}
+                                    <div class="ms-2">
+                                        <button class="btn btn-sm btn-outline-light edit-tag-btn" 
+                                                data-tag-id="{{ tag.id }}" 
+                                                data-tag-name="{{ tag.name }}" 
+                                                title="编辑标签">
+                                            <i class="bi bi-pencil" style="font-size: 0.7em;"></i>
+                                        </button>
+                                        {% if tag.usage_count == 0 %}
+                                        <button class="btn btn-sm btn-outline-danger delete-tag-btn" 
+                                                data-tag-id="{{ tag.id }}" 
+                                                data-tag-name="{{ tag.name }}" 
+                                                title="删除标签">
+                                            <i class="bi bi-trash" style="font-size: 0.7em;"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i> 
+                            蓝色为系统预定义标签，灰色为自定义标签，括号内为使用次数。自定义标签可以编辑和删除（仅限未使用的标签）。
+                        </small>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="newTagName" placeholder="输入新标签名称">
+                            <button class="btn btn-outline-success" id="createTagBtn">
+                                <i class="bi bi-plus"></i> 创建标签
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认对话框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle text-warning"></i> 确认删除
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除策略 <strong id="strategyNameToDelete"></strong> 吗？</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>注意：</strong>此操作会将策略设为非活跃状态，但不会删除关联的交易记录。
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑标签对话框 -->
+<div class="modal fade" id="editTagModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil"></i> 编辑标签
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="editTagName" class="form-label">标签名称</label>
+                    <input type="text" class="form-control" id="editTagName" placeholder="输入新的标签名称">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmEditTagBtn">保存修改</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除标签确认对话框 -->
+<div class="modal fade" id="deleteTagModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle text-warning"></i> 确认删除标签
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除标签 <strong id="tagNameToDelete"></strong> 吗？</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>注意：</strong>此操作无法撤销，标签删除后将永久消失。
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteTagBtn">确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 删除策略功能
+    let strategyIdToDelete = null;
+    
+    document.querySelectorAll('.delete-strategy-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            strategyIdToDelete = this.getAttribute('data-strategy-id');
+            const strategyName = this.getAttribute('data-strategy-name');
+            
+            document.getElementById('strategyNameToDelete').textContent = strategyName;
+            
+            const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            modal.show();
+        });
+    });
+    
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+        if (!strategyIdToDelete) return;
+        
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 删除中...';
+        
+        fetch(`/strategy/${strategyIdToDelete}/delete`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('删除成功！\n' + data.message);
+                location.reload();
+            } else {
+                alert('删除失败！\n' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('删除失败:', error);
+            alert('删除失败，请重试');
+        })
+        .finally(() => {
+            this.disabled = false;
+            this.innerHTML = '确认删除';
+        });
+    });
+    
+    // 创建标签功能
+    document.getElementById('createTagBtn').addEventListener('click', function() {
+        const tagName = document.getElementById('newTagName').value.trim();
+        
+        if (!tagName) {
+            alert('请输入标签名称');
+            return;
+        }
+        
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 创建中...';
+        
+        const formData = new FormData();
+        formData.append('name', tagName);
+        
+        fetch('/api/tag/create', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('标签创建成功！\n' + data.message);
+                location.reload();
+            } else {
+                alert('标签创建失败！\n' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('创建标签失败:', error);
+            alert('创建标签失败，请重试');
+        })
+        .finally(() => {
+            this.disabled = false;
+            this.innerHTML = '<i class="bi bi-plus"></i> 创建标签';
+            document.getElementById('newTagName').value = '';
+        });
+    });
+    
+    // 支持回车键创建标签
+    document.getElementById('newTagName').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            document.getElementById('createTagBtn').click();
+        }
+    });
+    
+    // 编辑标签功能
+    let tagIdToEdit = null;
+    
+    document.querySelectorAll('.edit-tag-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            tagIdToEdit = this.getAttribute('data-tag-id');
+            const tagName = this.getAttribute('data-tag-name');
+            
+            document.getElementById('editTagName').value = tagName;
+            
+            const modal = new bootstrap.Modal(document.getElementById('editTagModal'));
+            modal.show();
+        });
+    });
+    
+    document.getElementById('confirmEditTagBtn').addEventListener('click', function() {
+        if (!tagIdToEdit) return;
+        
+        const newName = document.getElementById('editTagName').value.trim();
+        if (!newName) {
+            alert('请输入标签名称');
+            return;
+        }
+        
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 保存中...';
+        
+        const formData = new FormData();
+        formData.append('name', newName);
+        
+        fetch(`/api/tag/${tagIdToEdit}/update`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('标签更新成功！\n' + data.message);
+                location.reload();
+            } else {
+                alert('标签更新失败！\n' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('更新标签失败:', error);
+            alert('更新标签失败，请重试');
+        })
+        .finally(() => {
+            this.disabled = false;
+            this.innerHTML = '保存修改';
+        });
+    });
+    
+    // 删除标签功能
+    let tagIdToDelete = null;
+    
+    document.querySelectorAll('.delete-tag-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            tagIdToDelete = this.getAttribute('data-tag-id');
+            const tagName = this.getAttribute('data-tag-name');
+            
+            document.getElementById('tagNameToDelete').textContent = tagName;
+            
+            const modal = new bootstrap.Modal(document.getElementById('deleteTagModal'));
+            modal.show();
+        });
+    });
+    
+    document.getElementById('confirmDeleteTagBtn').addEventListener('click', function() {
+        if (!tagIdToDelete) return;
+        
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 删除中...';
+        
+        fetch(`/api/tag/${tagIdToDelete}/delete`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('标签删除成功！\n' + data.message);
+                location.reload();
+            } else {
+                alert('标签删除失败！\n' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('删除标签失败:', error);
+            alert('删除标签失败，请重试');
+        })
+        .finally(() => {
+            this.disabled = false;
+            this.innerHTML = '确认删除';
+        });
+    });
+});
+</script>
+{% endblock %}

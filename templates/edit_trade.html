@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}修改交易记录 - 多策略交易跟踪系统{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <!-- 交易信息概览 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-pencil-square"></i> 修改交易记录
+                    <span class="badge bg-info ms-2">{{ trade.symbol_code }} - {{ trade.symbol_name }}</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <strong>策略类型:</strong><br>
+                        {% if trade.strategy_id %}
+                            <span class="badge bg-secondary">{{ strategies_dict.get(trade.strategy_id|string, '未知策略') }}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ strategies_dict.get('1', '趋势跟踪策略') }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-3">
+                        <strong>交易状态:</strong><br>
+                        <span class="badge bg-info">已平仓</span>
+                    </div>
+                    <div class="col-md-3">
+                        <strong>持仓天数:</strong><br>
+                        {{ trade.holding_days }}天
+                    </div>
+                    <div class="col-md-3">
+                        <strong>当前盈亏:</strong><br>
+                        {% if trade.total_profit_loss > 0 %}
+                            <span class="fw-bold text-danger">+¥{{ "%.3f"|format(trade.total_profit_loss) }}</span>
+                        {% elif trade.total_profit_loss < 0 %}
+                            <span class="fw-bold text-success">¥{{ "%.3f"|format(trade.total_profit_loss) }}</span>
+                        {% else %}
+                            <span class="fw-bold text-muted">¥0.000</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if error %}
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-exclamation-triangle"></i> {{ error }}
+            </div>
+        {% endif %}
+
+        <!-- 修改表单 -->
+        <form method="POST" class="needs-validation" novalidate>
+            <!-- 基本信息修改 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-gear"></i> 基本信息修改
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="strategy_id" class="form-label">
+                                <i class="bi bi-diagram-3"></i> 交易策略
+                            </label>
+                            <select class="form-select" id="strategy_id" name="strategy_id">
+                                {% for strategy in strategies_data %}
+                                <option value="{{ strategy.id }}" 
+                                        {{ 'selected' if (trade.strategy_id and trade.strategy_id == strategy.id) or (not trade.strategy_id and strategy.id == 1) else '' }}>
+                                    {{ strategy.name }}
+                                    {% if strategy.tags %}
+                                        ({{ strategy.tags|join(', ') }})
+                                    {% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">选择这笔交易所使用的策略类型</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="trade_log" class="form-label">
+                                <i class="bi bi-journal-check"></i> 交易日志
+                            </label>
+                            <textarea class="form-control" id="trade_log" name="trade_log" 
+                                      rows="3" placeholder="记录交易心得、策略执行情况等">{{ trade.trade_log or '' }}</textarea>
+                            <div class="form-text">记录交易过程中的思考和心得</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 交易明细修改 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-list-ol"></i> 交易明细修改
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>序号</th>
+                                    <th>类型</th>
+                                    <th>价格 (¥)</th>
+                                    <th>数量 (股)</th>
+                                    <th>金额 (¥)</th>
+                                    <th>日期</th>
+                                    <th>交易费用 (¥)</th>
+                                    <th>交易理由</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for detail in details %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>
+                                        {% if detail.transaction_type == 'buy' %}
+                                            <span class="badge bg-success">买入</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">卖出</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <input type="number" 
+                                               class="form-control form-control-sm" 
+                                               name="detail_{{ detail.id }}_price"
+                                               value="{{ detail.price }}"
+                                               step="0.001" min="0.001" 
+                                               style="width: 120px;"
+                                               onchange="updateAmount({{ detail.id }})">
+                                    </td>
+                                    <td>
+                                        <input type="number" 
+                                               class="form-control form-control-sm" 
+                                               name="detail_{{ detail.id }}_quantity"
+                                               value="{{ detail.quantity }}"
+                                               min="1" 
+                                               style="width: 100px;"
+                                               onchange="updateAmount({{ detail.id }})">
+                                    </td>
+                                    <td>
+                                        <span id="amount_{{ detail.id }}" class="fw-bold">¥{{ "%.3f"|format(detail.amount) }}</span>
+                                    </td>
+                                    <td>{{ detail.transaction_date }}</td>
+                                    <td>
+                                        <input type="number" 
+                                               class="form-control form-control-sm" 
+                                               name="detail_{{ detail.id }}_transaction_fee"
+                                               value="{{ detail.transaction_fee or 0 }}"
+                                               step="0.01" min="0" 
+                                               style="width: 100px;">
+                                    </td>
+                                    <td>
+                                        {% if detail.transaction_type == 'buy' %}
+                                            <textarea class="form-control form-control-sm" 
+                                                      name="detail_{{ detail.id }}_buy_reason"
+                                                      rows="2" style="width: 200px;"
+                                                      placeholder="买入理由...">{{ detail.buy_reason or '' }}</textarea>
+                                        {% else %}
+                                            <textarea class="form-control form-control-sm" 
+                                                      name="detail_{{ detail.id }}_sell_reason"
+                                                      rows="2" style="width: 200px;"
+                                                      placeholder="卖出理由...">{{ detail.sell_reason or '' }}</textarea>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+
+
+            <!-- 修改原因 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-clipboard-check"></i> 修改原因
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label for="modification_reason" class="form-label">
+                                <i class="bi bi-pencil-square"></i> 请说明本次修改的原因 <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control" id="modification_reason" name="modification_reason" rows="3" 
+                                      placeholder="例如：修正登记错误、补录遗漏信息、调整计算方式等..." required></textarea>
+                            <div class="form-text">
+                                为了保证数据的可追溯性，每次修改都需要记录原因，这将被保存在修改历史中
+                            </div>
+                            <div class="invalid-feedback">
+                                请填写修改原因
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 修改提示 -->
+            <div class="alert alert-info" role="alert">
+                <i class="bi bi-info-circle"></i>
+                <strong>修改说明：</strong>
+                <ul class="mb-0 mt-2">
+                    <li><strong>支持修改所有字段：</strong>策略类型、价格、数量、交易费用、交易理由和交易日志</li>
+                    <li><strong>自动计算：</strong>修改价格或数量时，金额会自动重新计算</li>
+                    <li><strong>完整重算：</strong>提交后将重新计算所有盈亏金额和比例</li>
+                    <li><strong>修改记录：</strong>所有修改都会记录在修改历史中，保证数据可追溯</li>
+                    <li><strong>必填原因：</strong>每次修改都必须填写修改原因</li>
+                    <li><strong>仅限已平仓：</strong>只有已平仓的交易可以修改</li>
+                </ul>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end mb-4">
+                <a href="{{ url_for('trade_details', trade_id=trade.id) }}" class="btn btn-secondary me-md-2">
+                    <i class="bi bi-arrow-left"></i> 取消修改
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle"></i> 保存修改
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 表单验证
+    const form = document.querySelector('.needs-validation');
+    form.addEventListener('submit', function(event) {
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        form.classList.add('was-validated');
+    });
+    
+    // 自动保存提醒
+    let hasChanges = false;
+    const inputs = form.querySelectorAll('input, textarea');
+    
+    inputs.forEach(input => {
+        input.addEventListener('input', function() {
+            hasChanges = true;
+        });
+    });
+    
+    // 页面离开确认
+    window.addEventListener('beforeunload', function(e) {
+        if (hasChanges) {
+            e.preventDefault();
+            e.returnValue = '您有未保存的修改，确定要离开吗？';
+        }
+    });
+    
+    // 提交表单时取消离开确认
+    form.addEventListener('submit', function() {
+        hasChanges = false;
+    });
+});
+
+// 实时计算金额
+function updateAmount(detailId) {
+    const priceInput = document.querySelector(`input[name="detail_${detailId}_price"]`);
+    const quantityInput = document.querySelector(`input[name="detail_${detailId}_quantity"]`);
+    const amountSpan = document.getElementById(`amount_${detailId}`);
+    
+    if (priceInput && quantityInput && amountSpan) {
+        const price = parseFloat(priceInput.value) || 0;
+        const quantity = parseInt(quantityInput.value) || 0;
+        const amount = price * quantity;
+        
+        amountSpan.textContent = `¥${amount.toFixed(3)}`;
+        
+        // 如果金额发生变化，标记有变更
+        if (window.hasChanges !== undefined) {
+            window.hasChanges = true;
+        }
+    }
+}
+</script>
+{% endblock %}

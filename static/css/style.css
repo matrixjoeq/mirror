@@ -66,14 +66,14 @@ body {
     color: #495057;
 }
 
-/* 盈亏数字样式 */
+/* 盈亏数字样式 - 盈利红色，亏损绿色 */
 .profit-positive {
-    color: #28a745 !important;
+    color: #dc3545 !important;  /* 盈利用红色 */
     font-weight: 600;
 }
 
 .profit-negative {
-    color: #dc3545 !important;
+    color: #28a745 !important;  /* 亏损用绿色 */
     font-weight: 600;
 }
 
@@ -277,14 +277,14 @@ body {
     color: #495057;
 }
 
-/* 数字格式化 */
+/* 数字格式化 - 盈利红色，亏损绿色 */
 .number-positive {
-    color: #28a745;
+    color: #dc3545;  /* 盈利用红色 */
     font-weight: 600;
 }
 
 .number-negative {
-    color: #dc3545;
+    color: #28a745;  /* 亏损用绿色 */
     font-weight: 600;
 }
 
@@ -375,4 +375,27 @@ body {
     .table {
         font-size: 12px;
     }
+}
+
+/* 最佳策略标识样式 */
+.best-strategy-badge {
+    animation: pulse 2s infinite;
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.border-3 {
+    border-width: 3px !important;
+    box-shadow: 0 0 15px rgba(0, 123, 255, 0.3);
 }

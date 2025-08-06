@@ -75,18 +75,18 @@
                         <div>剩余持仓: <span class="fw-bold text-primary">{{ trade.remaining_quantity }} 股</span></div>
                         <div>盈亏金额: 
                             {% if trade.total_profit_loss > 0 %}
-                                <span class="fw-bold text-success">+¥{{ "%.3f"|format(trade.total_profit_loss) }}</span>
+                                <span class="fw-bold text-danger">+¥{{ "%.3f"|format(trade.total_profit_loss) }}</span>
                             {% elif trade.total_profit_loss < 0 %}
-                                <span class="fw-bold text-danger">¥{{ "%.3f"|format(trade.total_profit_loss) }}</span>
+                                <span class="fw-bold text-success">¥{{ "%.3f"|format(trade.total_profit_loss) }}</span>
                             {% else %}
                                 <span class="fw-bold text-muted">¥0.000</span>
                             {% endif %}
                         </div>
                         <div>盈亏比例: 
                             {% if trade.total_profit_loss_pct > 0 %}
-                                <span class="fw-bold text-success">+{{ "%.2f"|format(trade.total_profit_loss_pct) }}%</span>
+                                <span class="fw-bold text-danger">+{{ "%.2f"|format(trade.total_profit_loss_pct) }}%</span>
                             {% elif trade.total_profit_loss_pct < 0 %}
-                                <span class="fw-bold text-danger">{{ "%.2f"|format(trade.total_profit_loss_pct) }}%</span>
+                                <span class="fw-bold text-success">{{ "%.2f"|format(trade.total_profit_loss_pct) }}%</span>
                             {% else %}
                                 <span class="fw-bold text-muted">0.00%</span>
                             {% endif %}
@@ -101,9 +101,44 @@
                         <i class="bi bi-dash-circle"></i> 卖出股份
                     </a>
                 </div>
+                {% elif trade.status == 'closed' %}
+                <hr>
+                <div class="text-center">
+                    <div class="d-flex gap-2 justify-content-center">
+                        <a href="{{ url_for('edit_trade', trade_id=trade.id) }}" class="btn btn-primary">
+                            <i class="bi bi-pencil-square"></i> 修改记录
+                        </a>
+                        <button class="btn btn-danger" id="deleteSingleBtn" data-trade-id="{{ trade.id }}">
+                            <i class="bi bi-trash"></i> 删除记录
+                        </button>
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                        <i class="bi bi-info-circle"></i> 可修改策略、费用、理由和日志，或者删除整个交易记录
+                    </small>
+                </div>
                 {% endif %}
             </div>
         </div>
+        
+        <!-- 交易日志 -->
+        {% if trade.status == 'closed' and trade.trade_log %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-journal-check"></i> 交易日志
+                    <span class="badge bg-info ms-2">已平仓</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="bg-light p-3 rounded">
+                    <p class="mb-0" style="white-space: pre-wrap;">{{ trade.trade_log }}</p>
+                </div>
+                <small class="text-muted mt-2 d-block">
+                    <i class="bi bi-calendar"></i> 记录于 {{ trade.close_date }}
+                </small>
+            </div>
+        </div>
+        {% endif %}
         
         <!-- 交易明细 -->
         <div class="card">
@@ -122,7 +157,9 @@
                                 <th>交易价格</th>
                                 <th>交易数量</th>
                                 <th>交易金额</th>
+                                <th>交易费用</th>
                                 <th>交易日期</th>
+                                <th>交易理由</th>
                                 <th>盈亏金额</th>
                                 <th>盈亏比例</th>
                             </tr>
@@ -142,13 +179,33 @@
                                     <td>¥{{ "%.3f"|format(detail.price) }}</td>
                                     <td>{{ detail.quantity }} 股</td>
                                     <td>¥{{ "%.3f"|format(detail.amount) }}</td>
+                                    <td>
+                                        {% if detail.transaction_fee %}
+                                            ¥{{ "%.2f"|format(detail.transaction_fee) }}
+                                        {% else %}
+                                            <span class="text-muted">¥0.00</span>
+                                        {% endif %}
+                                    </td>
                                     <td>{{ detail.transaction_date }}</td>
+                                    <td>
+                                        {% if detail.transaction_type == 'buy' and detail.buy_reason %}
+                                            <span class="text-truncate" style="max-width: 200px;" title="{{ detail.buy_reason }}">
+                                                {{ detail.buy_reason[:50] }}{% if detail.buy_reason|length > 50 %}...{% endif %}
+                                            </span>
+                                        {% elif detail.transaction_type == 'sell' and detail.sell_reason %}
+                                            <span class="text-truncate" style="max-width: 200px;" title="{{ detail.sell_reason }}">
+                                                {{ detail.sell_reason[:50] }}{% if detail.sell_reason|length > 50 %}...{% endif %}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         {% if detail.transaction_type == 'sell' %}
                                             {% if detail.profit_loss > 0 %}
-                                                <span class="text-success fw-bold">+¥{{ "%.3f"|format(detail.profit_loss) }}</span>
+                                                <span class="text-danger fw-bold">+¥{{ "%.3f"|format(detail.profit_loss) }}</span>
                                             {% elif detail.profit_loss < 0 %}
-                                                <span class="text-danger fw-bold">¥{{ "%.3f"|format(detail.profit_loss) }}</span>
+                                                <span class="text-success fw-bold">¥{{ "%.3f"|format(detail.profit_loss) }}</span>
                                             {% else %}
                                                 <span class="text-muted">¥0.000</span>
                                             {% endif %}
@@ -159,9 +216,9 @@
                                     <td>
                                         {% if detail.transaction_type == 'sell' %}
                                             {% if detail.profit_loss_pct > 0 %}
-                                                <span class="text-success fw-bold">+{{ "%.2f"|format(detail.profit_loss_pct) }}%</span>
+                                                <span class="text-danger fw-bold">+{{ "%.2f"|format(detail.profit_loss_pct) }}%</span>
                                             {% elif detail.profit_loss_pct < 0 %}
-                                                <span class="text-danger fw-bold">{{ "%.2f"|format(detail.profit_loss_pct) }}%</span>
+                                                <span class="text-success fw-bold">{{ "%.2f"|format(detail.profit_loss_pct) }}%</span>
                                             {% else %}
                                                 <span class="text-muted">0.00%</span>
                                             {% endif %}
@@ -249,6 +306,302 @@
             </div>
         </div>
         {% endif %}
+
+        <!-- 修改历史 -->
+        {% if trade.status == 'closed' %}
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-clock-history"></i> 修改历史
+                        </h6>
+                        <button class="btn btn-sm btn-outline-primary" id="loadModifications">
+                            <i class="bi bi-arrow-clockwise"></i> 加载历史
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="modificationsLoading" class="text-center text-muted" style="display: none;">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                            加载修改历史中...
+                        </div>
+                        <div id="modificationsContent" style="display: none;">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-sm">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>修改时间</th>
+                                            <th>修改类型</th>
+                                            <th>字段名称</th>
+                                            <th>原值</th>
+                                            <th>新值</th>
+                                            <th>修改原因</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="modificationsTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div id="noModifications" class="text-center text-muted">
+                            <i class="bi bi-info-circle"></i> 
+                            该交易尚未进行过修改，点击"加载历史"查看修改记录
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const loadBtn = document.getElementById('loadModifications');
+    const loadingDiv = document.getElementById('modificationsLoading');
+    const contentDiv = document.getElementById('modificationsContent');
+    const noModificationsDiv = document.getElementById('noModifications');
+    const tableBody = document.getElementById('modificationsTableBody');
+
+    if (loadBtn) {
+        loadBtn.addEventListener('click', function() {
+            loadModifications();
+        });
+    }
+
+    function loadModifications() {
+        loadingDiv.style.display = 'block';
+        noModificationsDiv.style.display = 'none';
+        contentDiv.style.display = 'none';
+
+        fetch(`/trade_modifications/{{ trade.id }}`)
+            .then(response => response.json())
+            .then(data => {
+                loadingDiv.style.display = 'none';
+                
+                if (data.modifications && data.modifications.length > 0) {
+                    renderModifications(data.modifications);
+                    contentDiv.style.display = 'block';
+                } else {
+                    noModificationsDiv.innerHTML = '<i class="bi bi-check-circle text-success"></i> 该交易没有修改记录';
+                    noModificationsDiv.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                loadingDiv.style.display = 'none';
+                noModificationsDiv.innerHTML = '<i class="bi bi-exclamation-triangle text-danger"></i> 加载修改历史失败';
+                noModificationsDiv.style.display = 'block';
+                console.error('Error loading modifications:', error);
+            });
+    }
+
+    function renderModifications(modifications) {
+        tableBody.innerHTML = '';
+        
+        modifications.forEach(mod => {
+            const row = document.createElement('tr');
+            
+            // 格式化修改时间
+            const modTime = new Date(mod.created_at).toLocaleString('zh-CN');
+            
+            // 确定修改类型显示
+            let modType = '';
+            if (mod.modification_type === 'trade') {
+                modType = '<span class="badge bg-primary">交易主体</span>';
+            } else if (mod.modification_type === 'detail') {
+                const transType = mod.transaction_type === 'buy' ? '买入' : '卖出';
+                modType = `<span class="badge bg-secondary">交易明细(${transType})</span>`;
+            }
+            
+            // 格式化字段名称
+            const fieldNames = {
+                'trade_log': '交易日志',
+                'price': '价格',
+                'quantity': '数量', 
+                'amount': '金额',
+                'transaction_fee': '交易费用',
+                'buy_reason': '买入理由',
+                'sell_reason': '卖出理由'
+            };
+            const fieldDisplayName = fieldNames[mod.field_name] || mod.field_name;
+            
+            row.innerHTML = `
+                <td class="text-nowrap">${modTime}</td>
+                <td>${modType}</td>
+                <td><strong>${fieldDisplayName}</strong></td>
+                <td class="text-muted" style="max-width: 200px; word-break: break-all;">${mod.old_value || '-'}</td>
+                <td class="text-primary" style="max-width: 200px; word-break: break-all;"><strong>${mod.new_value || '-'}</strong></td>
+                <td style="max-width: 250px; word-break: break-all;">${mod.modification_reason || '-'}</td>
+            `;
+            
+            tableBody.appendChild(row);
+        });
+    }
+    
+    // 单笔删除功能
+    const deleteSingleBtn = document.getElementById('deleteSingleBtn');
+    if (deleteSingleBtn) {
+        deleteSingleBtn.addEventListener('click', function() {
+            const tradeId = this.getAttribute('data-trade-id');
+            showDeleteModal([tradeId]);
+        });
+    }
+    
+    // 生成确认码
+    function generateConfirmationCode() {
+        return fetch('/generate_confirmation_code')
+            .then(response => response.json())
+            .then(data => data.confirmation_code)
+            .catch(error => {
+                console.error('生成确认码失败:', error);
+                return null;
+            });
+    }
+    
+    function showDeleteModal(tradeIds) {
+        // 创建删除确认对话框HTML
+        const modalHTML = `
+            <div class="modal fade" id="deleteModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="bi bi-exclamation-triangle text-danger"></i> 删除交易记录
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-danger">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                <strong>危险操作：</strong>此操作将删除当前交易记录。删除后的记录将被标记为已删除，可以在"已删除记录"页面恢复。
+                            </div>
+                            
+                            <form id="deleteForm">
+                                <div class="mb-3">
+                                    <label class="form-label">要删除的交易:</label>
+                                    <span class="fw-bold text-danger">ID: {{ trade.id }} - {{ trade.symbol_code }}</span>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="deleteReason" class="form-label">
+                                        删除原因 <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select" id="deleteReason" name="delete_reason" required>
+                                        <option value="">请选择删除原因</option>
+                                        <option value="测试数据清理">测试数据清理</option>
+                                        <option value="错误数据纠正">错误数据纠正</option>
+                                        <option value="重复数据删除">重复数据删除</option>
+                                        <option value="系统维护">系统维护</option>
+                                        <option value="其他">其他</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="confirmationCode" class="form-label">
+                                        确认码 <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="confirmationCode" name="confirmation_code" 
+                                               placeholder="请输入确认码" required>
+                                        <button type="button" class="btn btn-outline-secondary" id="generateCodeBtn">
+                                            <i class="bi bi-arrow-clockwise"></i> 生成
+                                        </button>
+                                    </div>
+                                    <div class="form-text">确认码用于防止误操作，请点击生成按钮获取</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="operatorNote" class="form-label">操作备注</label>
+                                    <textarea class="form-control" id="operatorNote" name="operator_note" rows="2" 
+                                              placeholder="可以记录此次删除的具体原因或其他备注信息..."></textarea>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                                <i class="bi bi-trash"></i> 确认删除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // 移除已存在的模态框
+        const existingModal = document.getElementById('deleteModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // 添加新的模态框到页面
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // 绑定事件
+        const generateCodeBtn = document.getElementById('generateCodeBtn');
+        generateCodeBtn.addEventListener('click', function() {
+            generateConfirmationCode().then(code => {
+                if (code) {
+                    document.getElementById('confirmationCode').value = code;
+                } else {
+                    alert('生成确认码失败，请重试');
+                }
+            });
+        });
+        
+        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+        confirmDeleteBtn.addEventListener('click', function() {
+            const deleteReason = document.getElementById('deleteReason').value.trim();
+            const confirmationCode = document.getElementById('confirmationCode').value.trim();
+            const operatorNote = document.getElementById('operatorNote').value.trim();
+            
+            if (!deleteReason) {
+                alert('请选择删除原因');
+                return;
+            }
+            
+            if (!confirmationCode) {
+                alert('请输入确认码');
+                return;
+            }
+            
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 删除中...';
+            
+            const formData = new FormData();
+            formData.append('delete_reason', deleteReason);
+            formData.append('confirmation_code', confirmationCode);
+            formData.append('operator_note', operatorNote);
+            
+            fetch(`/delete_trade/${tradeIds[0]}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('删除成功！\\n' + data.message);
+                    window.location.href = '/trades'; // 跳转到交易列表
+                } else {
+                    alert('删除失败！\\n' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('删除失败:', error);
+                alert('删除失败，请重试');
+            })
+            .finally(() => {
+                this.disabled = false;
+                this.innerHTML = '<i class="bi bi-trash"></i> 确认删除';
+            });
+        });
+        
+        // 显示模态框
+        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        modal.show();
+    }
+});
+</script>
 {% endblock %}

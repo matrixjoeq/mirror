@@ -25,9 +25,15 @@
                                 <i class="bi bi-diagram-3"></i> 交易策略 <span class="text-danger">*</span>
                             </label>
                             <select class="form-select" id="strategy" name="strategy" required>
-                                {% for strategy_code, strategy_name in strategies.items() %}
-                                <option value="{{ strategy_code }}" {{ 'selected' if default_strategy == strategy_code else '' }}>
-                                    {{ strategy_name }}
+                                {% for strategy in strategies_data %}
+                                <option value="{{ strategy.id }}" 
+                                        {{ 'selected' if default_strategy == strategy.id|string else '' }}
+                                        data-description="{{ strategy.description or '' }}"
+                                        data-tags="{{ strategy.tags|join(', ') }}">
+                                    {{ strategy.name }}
+                                    {% if strategy.tags %}
+                                        ({{ strategy.tags|join(', ') }})
+                                    {% endif %}
                                 </option>
                                 {% endfor %}
                             </select>
@@ -35,6 +41,17 @@
                                 请选择交易策略
                             </div>
                             <div class="form-text">选择这笔交易所使用的策略类型</div>
+                            
+                            <!-- 策略描述显示区域 -->
+                            <div id="strategyDescription" class="mt-2" style="display: none;">
+                                <div class="alert alert-info">
+                                    <h6 class="alert-heading mb-2">策略描述</h6>
+                                    <p class="mb-2" id="descriptionText"></p>
+                                    <small class="text-muted">
+                                        <i class="bi bi-tags"></i> <span id="strategyTags"></span>
+                                    </small>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -104,6 +121,31 @@
                             </div>
                         </div>
                         <div class="col-md-6 mb-3">
+                            <label for="transaction_fee" class="form-label">
+                                <i class="bi bi-receipt"></i> 交易手续费
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" class="form-control" id="transaction_fee" name="transaction_fee" 
+                                       step="0.01" min="0" placeholder="0.00" value="0">
+                            </div>
+                            <div class="form-text">买入时的手续费成本</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label for="buy_reason" class="form-label">
+                                <i class="bi bi-journal-text"></i> 买入理由
+                            </label>
+                            <textarea class="form-control" id="buy_reason" name="buy_reason" rows="3" 
+                                      placeholder="记录买入的原因、分析依据或策略考虑..."></textarea>
+                            <div class="form-text">详细记录买入决策的理由，便于后续复盘</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
                             <label class="form-label">
                                 <i class="bi bi-calculator"></i> 交易金额
                             </label>
@@ -112,7 +154,18 @@
                                 <input type="text" class="form-control" id="amount_display" readonly 
                                        placeholder="0.000">
                             </div>
-                            <div class="form-text">将根据价格和数量自动计算</div>
+                            <div class="form-text">价格 × 数量（不含手续费）</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">
+                                <i class="bi bi-cash-stack"></i> 总成本
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="text" class="form-control" id="total_cost_display" readonly 
+                                       placeholder="0.000">
+                            </div>
+                            <div class="form-text">交易金额 + 手续费</div>
                         </div>
                     </div>
                     
@@ -149,20 +202,52 @@ document.addEventListener('DOMContentLoaded', function() {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('transaction_date').value = today;
     
-    // 实时计算交易金额
+    // 策略描述显示处理
+    const strategySelect = document.getElementById('strategy');
+    const strategyDescription = document.getElementById('strategyDescription');
+    const descriptionText = document.getElementById('descriptionText');
+    const strategyTags = document.getElementById('strategyTags');
+    
+    function updateStrategyDescription() {
+        const selectedOption = strategySelect.options[strategySelect.selectedIndex];
+        const description = selectedOption.getAttribute('data-description');
+        const tags = selectedOption.getAttribute('data-tags');
+        
+        if (description || tags) {
+            descriptionText.textContent = description || '暂无描述';
+            strategyTags.textContent = tags || '无标签';
+            strategyDescription.style.display = 'block';
+        } else {
+            strategyDescription.style.display = 'none';
+        }
+    }
+    
+    strategySelect.addEventListener('change', updateStrategyDescription);
+    // 初始化显示
+    updateStrategyDescription();
+    
+    // 实时计算交易金额和总成本
     const priceInput = document.getElementById('price');
     const quantityInput = document.getElementById('quantity');
+    const feeInput = document.getElementById('transaction_fee');
     const amountDisplay = document.getElementById('amount_display');
+    const totalCostDisplay = document.getElementById('total_cost_display');
     
     function calculateAmount() {
         const price = parseFloat(priceInput.value) || 0;
         const quantity = parseInt(quantityInput.value) || 0;
+        const fee = parseFloat(feeInput.value) || 0;
+        
         const amount = price * quantity;
+        const totalCost = amount + fee;
+        
         amountDisplay.value = amount.toFixed(3);
+        totalCostDisplay.value = totalCost.toFixed(3);
     }
     
     priceInput.addEventListener('input', calculateAmount);
     quantityInput.addEventListener('input', calculateAmount);
+    feeInput.addEventListener('input', calculateAmount);
     
     // 表单验证
     const form = document.querySelector('.needs-validation');

@@ -97,6 +97,20 @@
                             </div>
                         </div>
                         <div class="col-md-6 mb-3">
+                            <label for="transaction_fee" class="form-label">
+                                <i class="bi bi-receipt"></i> 交易手续费
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" class="form-control" id="transaction_fee" name="transaction_fee" 
+                                       step="0.01" min="0" placeholder="0.00" value="0">
+                            </div>
+                            <div class="form-text">卖出时的手续费成本</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
                             <label class="form-label">
                                 <i class="bi bi-calculator"></i> 卖出金额
                             </label>
@@ -105,7 +119,42 @@
                                 <input type="text" class="form-control" id="sell_amount_display" readonly 
                                        placeholder="0.000">
                             </div>
-                            <div class="form-text">将根据价格和数量自动计算</div>
+                            <div class="form-text">价格 × 数量（不含手续费）</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">
+                                <i class="bi bi-cash"></i> 净收入
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="text" class="form-control" id="net_amount_display" readonly 
+                                       placeholder="0.000">
+                            </div>
+                            <div class="form-text">卖出金额 - 手续费</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label for="sell_reason" class="form-label">
+                                <i class="bi bi-journal-text"></i> 卖出理由
+                            </label>
+                            <textarea class="form-control" id="sell_reason" name="sell_reason" rows="3" 
+                                      placeholder="记录卖出的原因、市场分析或策略调整..."></textarea>
+                            <div class="form-text">详细记录卖出决策的理由，便于后续复盘</div>
+                        </div>
+                    </div>
+                    
+                    <!-- 只在完全平仓时显示交易日志输入 -->
+                    <div class="row" id="trade_log_section" style="display: none;">
+                        <div class="col-md-12 mb-3">
+                            <label for="trade_log" class="form-label">
+                                <i class="bi bi-journal-check"></i> 交易日志 
+                                <span class="badge bg-info">完全平仓</span>
+                            </label>
+                            <textarea class="form-control" id="trade_log" name="trade_log" rows="4" 
+                                      placeholder="记录整个交易过程的总结、学到的经验、策略效果分析等..."></textarea>
+                            <div class="form-text">交易完全结束时填写，记录整个交易的经验和总结</div>
                         </div>
                     </div>
                     
@@ -176,10 +225,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // 实时计算卖出金额和盈亏
     const priceInput = document.getElementById('price');
     const quantityInput = document.getElementById('quantity');
+    const feeInput = document.getElementById('transaction_fee');
+    const tradeLogSection = document.getElementById('trade_log_section');
     
     function calculateProfitLoss() {
         const price = parseFloat(priceInput.value) || 0;
         const quantity = parseInt(quantityInput.value) || 0;
+        const fee = parseFloat(feeInput.value) || 0;
         
         if (quantity > maxQuantity) {
             quantityInput.value = maxQuantity;
@@ -187,28 +239,37 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         const sellAmount = price * quantity;
+        const netAmount = sellAmount - fee;
         const buyCost = avgBuyPrice * quantity;
-        const profitLoss = sellAmount - buyCost;
+        const profitLoss = netAmount - buyCost;
         const profitLossPct = buyCost > 0 ? (profitLoss / buyCost) * 100 : 0;
+        
+        // 显示/隐藏交易日志输入框（完全平仓时显示）
+        if (quantity === maxQuantity && quantity > 0) {
+            tradeLogSection.style.display = 'block';
+        } else {
+            tradeLogSection.style.display = 'none';
+        }
         
         // 更新显示
         document.getElementById('sell_amount_display').value = sellAmount.toFixed(3);
+        document.getElementById('net_amount_display').value = netAmount.toFixed(3);
         document.getElementById('buy_cost_display').textContent = '¥' + buyCost.toFixed(3);
-        document.getElementById('sell_amount_preview').textContent = '¥' + sellAmount.toFixed(3);
+        document.getElementById('sell_amount_preview').textContent = '¥' + netAmount.toFixed(3);
         
         const profitLossAmountEl = document.getElementById('profit_loss_amount');
         const profitLossPctEl = document.getElementById('profit_loss_pct');
         
         if (profitLoss > 0) {
             profitLossAmountEl.textContent = '+¥' + profitLoss.toFixed(3);
-            profitLossAmountEl.className = 'text-success fw-bold';
+            profitLossAmountEl.className = 'text-danger fw-bold';  // 盈利用红色
             profitLossPctEl.textContent = '+' + profitLossPct.toFixed(2) + '%';
-            profitLossPctEl.className = 'text-success fw-bold';
+            profitLossPctEl.className = 'text-danger fw-bold';
         } else if (profitLoss < 0) {
             profitLossAmountEl.textContent = '¥' + profitLoss.toFixed(3);
-            profitLossAmountEl.className = 'text-danger fw-bold';
+            profitLossAmountEl.className = 'text-success fw-bold';  // 亏损用绿色
             profitLossPctEl.textContent = profitLossPct.toFixed(2) + '%';
-            profitLossPctEl.className = 'text-danger fw-bold';
+            profitLossPctEl.className = 'text-success fw-bold';
         } else {
             profitLossAmountEl.textContent = '¥0.000';
             profitLossAmountEl.className = 'text-muted';
@@ -219,6 +280,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     priceInput.addEventListener('input', calculateProfitLoss);
     quantityInput.addEventListener('input', calculateProfitLoss);
+    feeInput.addEventListener('input', calculateProfitLoss);
     
     // 表单验证
     const form = document.querySelector('.needs-validation');
