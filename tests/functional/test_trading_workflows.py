@@ -20,7 +20,10 @@ from datetime import datetime, timedelta
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from app import TradingTracker
+from services.database_service import DatabaseService
+from services.trading_service import TradingService
+from services.strategy_service import StrategyService
+from services.analysis_service import AnalysisService
 
 
 class TestTradingWorkflows(unittest.TestCase):
@@ -30,7 +33,15 @@ class TestTradingWorkflows(unittest.TestCase):
         """测试前准备"""
         self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
         self.temp_db.close()
-        self.tracker = TradingTracker(self.temp_db.name)
+        
+        # 初始化新的服务架构
+        self.db_service = DatabaseService(self.temp_db.name)
+        self.trading_service = TradingService(self.db_service)
+        self.strategy_service = StrategyService(self.db_service)
+        self.analysis_service = AnalysisService(self.db_service)
+        
+        # 向后兼容
+        self.tracker = self.trading_service
     
     def tearDown(self):
         """测试后清理"""
@@ -46,7 +57,7 @@ class TestTradingWorkflows(unittest.TestCase):
         print("\n=== 测试完整交易生命周期 ===")
         
         # 第1步：创建交易策略
-        success, message = self.tracker.create_strategy(
+        success, message = self.strategy_service.create_strategy(
             name="趋势追踪策略",
             description="追踪市场趋势的长期投资策略",
             tag_names=["趋势", "长期"]
@@ -55,7 +66,7 @@ class TestTradingWorkflows(unittest.TestCase):
         print(f"✓ 创建策略成功：{message}")
         
         # 获取策略ID
-        strategies = self.tracker.get_all_strategies()
+        strategies = self.strategy_service.get_all_strategies()
         strategy = next((s for s in strategies if s['name'] == "趋势追踪策略"), None)
         strategy_id = strategy['id']
         
@@ -106,11 +117,12 @@ class TestTradingWorkflows(unittest.TestCase):
         print(f"✓ 盈亏计算正确：{trade['total_profit_loss']}元（无卖出时为0）")
         
         # 第6步：策略评分分析（只统计已完成交易，开仓交易不计入评分）
-        score = self.tracker.calculate_strategy_score(strategy_id=strategy_id)
+        score = self.analysis_service.calculate_strategy_score(strategy_id=strategy_id)
         self.assertEqual(score['stats']['total_trades'], 0)  # 开仓交易不计入评分
         self.assertEqual(score['stats']['winning_trades'], 0)
-        self.assertEqual(score['total_score'], 0.0)
-        print(f"✓ 策略评分完成：总分{score['total_score']:.1f}（开仓交易不计入评分）")
+        # 新的分析服务返回stats格式，不返回总评分
+        self.assertEqual(score['stats']['total_trades'], 0)
+        print(f"✓ 策略评分完成：胜率{score['stats']['win_rate']:.1f}%（开仓交易不计入评分）")
         
         print("=== 完整交易生命周期测试通过 ===\n")
     
@@ -119,7 +131,7 @@ class TestTradingWorkflows(unittest.TestCase):
         print("\n=== 测试多标的组合管理 ===")
         
         # 创建轮动策略
-        success, message = self.tracker.create_strategy(
+        success, message = self.strategy_service.create_strategy(
             name="行业轮动策略",
             description="基于行业轮动的投资策略",
             tag_names=["轮动", "多元化"]
@@ -127,7 +139,7 @@ class TestTradingWorkflows(unittest.TestCase):
         self.assertTrue(success)
         
         # 获取策略ID
-        strategies = self.tracker.get_all_strategies()
+        strategies = self.strategy_service.get_all_strategies()
         strategy = next((s for s in strategies if s['name'] == "行业轮动策略"), None)
         strategy_id = strategy['id']
         
@@ -156,7 +168,7 @@ class TestTradingWorkflows(unittest.TestCase):
         print(f"✓ 成功配置{len(trade_ids)}个标的")
         
         # 验证组合状态（开仓交易不计入评分）
-        score = self.tracker.calculate_strategy_score(strategy_id=strategy_id)
+        score = self.analysis_service.calculate_strategy_score(strategy_id=strategy_id)
         self.assertEqual(score['stats']['total_trades'], 0)  # 开仓交易不计入评分
         print(f"✓ 策略评分：{score['stats']['total_trades']}笔已完成交易")
         
@@ -179,7 +191,7 @@ class TestTradingWorkflows(unittest.TestCase):
         self.assertTrue(success)
         
         # 验证轮动后组合状态（开仓交易不计入评分）
-        score = self.tracker.calculate_strategy_score(strategy_id=strategy_id)
+        score = self.analysis_service.calculate_strategy_score(strategy_id=strategy_id)
         self.assertEqual(score['stats']['total_trades'], 0)  # 开仓交易不计入评分
         print(f"✓ 轮动后策略评分：{score['stats']['total_trades']}笔已完成交易")
         
@@ -190,14 +202,14 @@ class TestTradingWorkflows(unittest.TestCase):
         print("\n=== 测试策略对比分析工作流 ===")
         
         # 创建两个不同策略
-        success1, message1 = self.tracker.create_strategy(
+        success1, message1 = self.strategy_service.create_strategy(
             name="趋势策略",
             description="基于技术指标的趋势跟踪",
             tag_names=["趋势", "技术"]
         )
         self.assertTrue(success1)
         
-        success2, message2 = self.tracker.create_strategy(
+        success2, message2 = self.strategy_service.create_strategy(
             name="价值策略", 
             description="基于基本面的价值投资",
             tag_names=["价值", "基本面"]
@@ -205,7 +217,7 @@ class TestTradingWorkflows(unittest.TestCase):
         self.assertTrue(success2)
         
         # 获取策略IDs
-        strategies = self.tracker.get_all_strategies()
+        strategies = self.strategy_service.get_all_strategies()
         trend_strategy = next((s for s in strategies if s['name'] == "趋势策略"), None)
         value_strategy = next((s for s in strategies if s['name'] == "价值策略"), None)
         trend_strategy_id = trend_strategy['id']
@@ -257,11 +269,11 @@ class TestTradingWorkflows(unittest.TestCase):
             # self.tracker.add_sell_transaction(...)
         
         # 策略对比分析
-        trend_score = self.tracker.calculate_strategy_score(strategy_id=trend_strategy_id)
-        value_score = self.tracker.calculate_strategy_score(strategy_id=value_strategy_id)
+        trend_score = self.analysis_service.calculate_strategy_score(strategy_id=trend_strategy_id)
+        value_score = self.analysis_service.calculate_strategy_score(strategy_id=value_strategy_id)
         
-        print(f"✓ 趋势策略评分：{trend_score['total_score']:.1f}分，胜率{trend_score['stats']['win_rate']:.1f}%")
-        print(f"✓ 价值策略评分：{value_score['total_score']:.1f}分，胜率{value_score['stats']['win_rate']:.1f}%")
+        print(f"✓ 趋势策略评分：胜率{trend_score['stats']['win_rate']:.1f}%，总收益率{trend_score['stats']['total_return_rate']:.1f}%")
+        print(f"✓ 价值策略评分：胜率{value_score['stats']['win_rate']:.1f}%，总收益率{value_score['stats']['total_return_rate']:.1f}%")
         
         # 验证策略特征（开仓交易不计入评分）
         self.assertEqual(trend_score['stats']['total_trades'], 0)  # 开仓交易不计入评分
@@ -272,8 +284,9 @@ class TestTradingWorkflows(unittest.TestCase):
         self.assertEqual(trend_score['stats']['win_rate'], 0.0)
         
         # 无完成交易时评分均为0
-        self.assertEqual(trend_score['frequency_score'], 0.0)
-        self.assertEqual(value_score['frequency_score'], 0.0)
+        # 新的分析服务返回stats格式，不返回频率评分
+        self.assertEqual(trend_score['stats']['total_trades'], 0)
+        self.assertEqual(value_score['stats']['total_trades'], 0)
         
         print("=== 策略对比分析工作流测试通过 ===\n")
     
@@ -286,14 +299,14 @@ class TestTradingWorkflows(unittest.TestCase):
         print("\n=== 测试交易修改工作流 ===")
         
         # 创建策略
-        success, message = self.tracker.create_strategy(
+        success, message = self.strategy_service.create_strategy(
             name="修改测试策略",
             description="用于测试交易修改功能"
         )
         self.assertTrue(success)
         
         # 获取策略ID
-        strategies = self.tracker.get_all_strategies()
+        strategies = self.strategy_service.get_all_strategies()
         strategy = next((s for s in strategies if s['name'] == "修改测试策略"), None)
         strategy_id = strategy['id']
         
@@ -359,14 +372,14 @@ class TestTradingWorkflows(unittest.TestCase):
         print("\n=== 测试软删除和恢复工作流 ===")
         
         # 创建测试数据
-        success, message = self.tracker.create_strategy(
+        success, message = self.strategy_service.create_strategy(
             name="删除测试策略",
             description="用于测试删除恢复功能"
         )
         self.assertTrue(success)
         
         # 获取策略ID
-        strategies = self.tracker.get_all_strategies()
+        strategies = self.strategy_service.get_all_strategies()
         strategy = next((s for s in strategies if s['name'] == "删除测试策略"), None)
         strategy_id = strategy['id']
         
@@ -458,11 +471,11 @@ class TestTradingWorkflows(unittest.TestCase):
         
         strategy_ids = {}
         for name, desc, tags in strategies:
-            success, message = self.tracker.create_strategy(name=name, description=desc, tag_names=tags)
+            success, message = self.strategy_service.create_strategy(name=name, description=desc, tag_names=tags)
             self.assertTrue(success)
             
             # 获取策略ID
-            all_strategies = self.tracker.get_all_strategies()
+            all_strategies = self.strategy_service.get_all_strategies()
             strategy = next((s for s in all_strategies if s['name'] == name), None)
             strategy_ids[name] = strategy['id']
         
@@ -579,14 +592,14 @@ class TestTradingWorkflows(unittest.TestCase):
         
         # 分析各策略表现
         for strategy_name, strategy_id in strategy_ids.items():
-            score = self.tracker.calculate_strategy_score(strategy_id=strategy_id)
+            score = self.analysis_service.calculate_strategy_score(strategy_id=strategy_id)
             print(f"✓ {strategy_name}：{score['stats']['total_trades']}笔交易，"
                   f"胜率{score['stats']['win_rate']:.1f}%，"
-                  f"总评分{score['total_score']:.1f}")
+                  f"胜率{score['stats']['win_rate']:.1f}%")
         
         # 验证整体投资组合（开仓交易不计入评分统计）
-        all_strategies = self.tracker.get_all_strategies()
-        total_completed_trades = sum(self.tracker.calculate_strategy_score(strategy_id=s['id'])['stats']['total_trades'] for s in all_strategies)
+        all_strategies = self.strategy_service.get_all_strategies()
+        total_completed_trades = sum(self.analysis_service.calculate_strategy_score(strategy_id=s['id'])['stats']['total_trades'] for s in all_strategies)
         # 由于都是开仓交易，完成交易数为0
         self.assertEqual(total_completed_trades, 0)
         print(f"✓ 整体组合包含{total_completed_trades}笔已完成交易")

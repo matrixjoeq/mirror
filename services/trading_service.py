@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+交易服务层
+"""
+
+from typing import List, Dict, Any, Optional, Tuple
+from datetime import datetime, date
+from decimal import Decimal
+
+from .database_service import DatabaseService
+from .strategy_service import StrategyService
+from models.trading import Trade, TradeDetail, TradeModification
+from utils.helpers import generate_confirmation_code
+
+
+class TradingService:
+    """交易管理服务"""
+    
+    def __init__(self, db_service: Optional[DatabaseService] = None):
+        self.db = db_service or DatabaseService()
+        self.strategy_service = StrategyService(self.db)
+    
+    def add_buy_transaction(self, strategy, symbol_code: str, symbol_name: str, 
+                          price: Decimal, quantity: int, transaction_date: str,
+                          transaction_fee: Decimal = Decimal('0'), buy_reason: str = '') -> Tuple[bool, Any]:
+        """添加买入交易"""
+        try:
+            # 输入验证
+            if not symbol_code or not symbol_name:
+                return False, "股票代码和名称不能为空"
+            
+            if price <= 0 or quantity <= 0:
+                return False, "价格和数量必须大于0"
+            
+            # 解析和验证策略
+            strategy_id = self._resolve_strategy(strategy)
+            if not strategy_id:
+                return False, f"策略ID {strategy} 不存在或已被禁用"
+            
+            # 确保类型一致并计算交易金额
+            price = Decimal(str(price))
+            quantity = int(quantity)
+            transaction_fee = Decimal(str(transaction_fee))
+            amount = price * quantity + transaction_fee
+            
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 检查是否已有该股票的开放交易
+                cursor.execute('''
+                    SELECT id FROM trades 
+                    WHERE strategy_id = ? AND symbol_code = ? AND status = 'open' AND is_deleted = 0
+                ''', (strategy_id, symbol_code))
+                
+                existing_trade = cursor.fetchone()
+                
+                if existing_trade:
+                    # 更新现有交易
+                    trade_id = existing_trade['id']
+                    self._update_existing_trade_for_buy(cursor, trade_id, price, quantity, transaction_date, transaction_fee, amount)
+                else:
+                    # 创建新交易
+                    trade_id = self._create_new_trade(cursor, strategy_id, symbol_code, symbol_name, transaction_date)
+                    # 更新新交易的金额
+                    self._update_existing_trade_for_buy(cursor, trade_id, price, quantity, transaction_date, transaction_fee, amount)
+                
+                # 添加交易明细
+                cursor.execute('''
+                    INSERT INTO trade_details (
+                        trade_id, transaction_type, price, quantity, amount,
+                        transaction_date, transaction_fee, buy_reason, created_at
+                    ) VALUES (?, 'buy', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ''', (trade_id, float(price), quantity, float(amount), transaction_date, float(transaction_fee), buy_reason))
+                
+                conn.commit()
+                return True, trade_id
+                
+        except Exception as e:
+            return False, f"添加买入交易失败: {str(e)}"
+    
+    def add_sell_transaction(self, trade_id: int, price: Decimal, quantity: int,
+                           transaction_date: str, transaction_fee: Decimal = Decimal('0'),
+                           sell_reason: str = '', trade_log: str = '') -> Tuple[bool, str]:
+        """添加卖出交易"""
+        try:
+            # 确保类型一致
+            price = Decimal(str(price))
+            quantity = int(quantity)
+            transaction_fee = Decimal(str(transaction_fee))
+            
+            # 输入验证
+            if price <= 0 or quantity <= 0:
+                return False, "价格和数量必须大于0"
+            
+            # 获取交易信息
+            trade = self.get_trade_by_id(trade_id)
+            if not trade:
+                return False, f"交易ID {trade_id} 不存在"
+            
+            if trade['status'] == 'closed':
+                return False, "该交易已平仓"
+            
+            if trade['remaining_quantity'] < quantity:
+                return False, f"卖出数量({quantity})超过剩余持仓({trade['remaining_quantity']})"
+            
+            # 计算交易金额和盈亏
+            sell_amount = price * quantity - transaction_fee
+            
+            # 计算平均买入成本（确保类型一致）
+            total_buy_amount = Decimal(str(trade['total_buy_amount']))
+            total_buy_quantity = Decimal(str(trade['total_buy_quantity']))
+            
+            avg_buy_price = total_buy_amount / total_buy_quantity if total_buy_quantity > 0 else Decimal('0')
+            buy_cost = avg_buy_price * Decimal(str(quantity))
+            profit_loss = sell_amount - buy_cost
+            profit_loss_pct = (profit_loss / buy_cost * 100) if buy_cost > 0 else Decimal('0')
+            
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 添加卖出明细
+                cursor.execute('''
+                    INSERT INTO trade_details (
+                        trade_id, transaction_type, price, quantity, amount,
+                        transaction_date, transaction_fee, sell_reason,
+                        profit_loss, profit_loss_pct, created_at
+                    ) VALUES (?, 'sell', ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ''', (trade_id, float(price), quantity, float(sell_amount), transaction_date, 
+                      float(transaction_fee), sell_reason, float(profit_loss), float(profit_loss_pct)))
+                
+                # 更新交易主记录
+                new_remaining = trade['remaining_quantity'] - quantity
+                new_sell_amount = Decimal(str(trade['total_sell_amount'])) + sell_amount
+                new_sell_quantity = trade['total_sell_quantity'] + quantity
+                new_profit_loss = Decimal(str(trade['total_profit_loss'])) + profit_loss
+                new_profit_loss_pct = (new_profit_loss / total_buy_amount * 100) if total_buy_amount > 0 else Decimal('0')
+                
+                status = 'closed' if new_remaining == 0 else 'open'
+                close_date = transaction_date if status == 'closed' else None
+                
+                # 计算持仓天数
+                if status == 'closed':
+                    open_date = datetime.strptime(trade['open_date'], '%Y-%m-%d').date()
+                    close_date_obj = datetime.strptime(transaction_date, '%Y-%m-%d').date()
+                    holding_days = (close_date_obj - open_date).days
+                else:
+                    holding_days = trade['holding_days']
+                
+                cursor.execute('''
+                    UPDATE trades SET
+                        total_sell_amount = ?, total_sell_quantity = ?, remaining_quantity = ?,
+                        total_profit_loss = ?, total_profit_loss_pct = ?, status = ?,
+                        close_date = ?, holding_days = ?, trade_log = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (float(new_sell_amount), new_sell_quantity, new_remaining, float(new_profit_loss),
+                      float(new_profit_loss_pct), status, close_date, holding_days, trade_log, trade_id))
+                
+                conn.commit()
+                return True, "卖出交易添加成功"
+                
+        except Exception as e:
+            return False, f"添加卖出交易失败: {str(e)}"
+    
+    def get_all_trades(self, status: Optional[str] = None, strategy: Optional[str] = None, 
+                      include_deleted: bool = False) -> List[Dict[str, Any]]:
+        """获取所有交易"""
+        query = '''
+            SELECT t.*, s.name as strategy_name
+            FROM trades t
+            LEFT JOIN strategies s ON t.strategy_id = s.id
+        '''
+        
+        conditions = []
+        params = []
+        
+        if not include_deleted:
+            conditions.append("t.is_deleted = 0")
+        
+        if status:
+            conditions.append("t.status = ?")
+            params.append(status)
+        
+        if strategy:
+            strategy_id = self._resolve_strategy(strategy)
+            if strategy_id:
+                conditions.append("t.strategy_id = ?")
+                params.append(strategy_id)
+        
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        
+        query += " ORDER BY t.created_at DESC"
+        
+        trades = self.db.execute_query(query, tuple(params))
+        return [dict(trade) for trade in trades]
+    
+    def get_trade_by_id(self, trade_id: int) -> Optional[Dict[str, Any]]:
+        """根据ID获取交易"""
+        query = '''
+            SELECT t.*, s.name as strategy_name
+            FROM trades t
+            LEFT JOIN strategies s ON t.strategy_id = s.id
+            WHERE t.id = ?
+        '''
+        
+        trade = self.db.execute_query(query, (trade_id,), fetch_one=True)
+        return dict(trade) if trade else None
+    
+    def get_trade_details(self, trade_id: int, include_deleted: bool = False) -> List[Dict[str, Any]]:
+        """获取交易明细"""
+        query = "SELECT * FROM trade_details WHERE trade_id = ?"
+        
+        if not include_deleted:
+            query += " AND is_deleted = 0"
+        
+        query += " ORDER BY transaction_date, created_at"
+        
+        details = self.db.execute_query(query, (trade_id,))
+        return [dict(detail) for detail in details]
+    
+    def soft_delete_trade(self, trade_id: int, confirmation_code: str, 
+                         delete_reason: str, operator_note: str = '') -> bool:
+        """软删除交易"""
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 软删除交易主记录
+                cursor.execute('''
+                    UPDATE trades SET 
+                        is_deleted = 1, delete_date = CURRENT_TIMESTAMP,
+                        delete_reason = ?, operator_note = ?
+                    WHERE id = ?
+                ''', (delete_reason, operator_note, trade_id))
+                
+                # 软删除相关交易明细
+                cursor.execute('''
+                    UPDATE trade_details SET 
+                        is_deleted = 1, delete_date = CURRENT_TIMESTAMP,
+                        delete_reason = ?, operator_note = ?
+                    WHERE trade_id = ?
+                ''', (delete_reason, operator_note, trade_id))
+                
+                conn.commit()
+                return True
+                
+        except Exception as e:
+            print(f"软删除交易失败: {str(e)}")
+            return False
+    
+    def restore_trade(self, trade_id: int, confirmation_code: str, operator_note: str = '') -> bool:
+        """恢复已删除的交易"""
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 恢复交易主记录
+                cursor.execute('''
+                    UPDATE trades SET 
+                        is_deleted = 0, delete_date = NULL,
+                        delete_reason = '', operator_note = ?
+                    WHERE id = ?
+                ''', (operator_note, trade_id))
+                
+                # 恢复相关交易明细
+                cursor.execute('''
+                    UPDATE trade_details SET 
+                        is_deleted = 0, delete_date = NULL,
+                        delete_reason = '', operator_note = ?
+                    WHERE trade_id = ?
+                ''', (operator_note, trade_id))
+                
+                conn.commit()
+                return True
+                
+        except Exception as e:
+            print(f"恢复交易失败: {str(e)}")
+            return False
+    
+    def permanently_delete_trade(self, trade_id: int, confirmation_code: str,
+                               confirmation_text: str, delete_reason: str, operator_note: str = '') -> bool:
+        """永久删除交易"""
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 删除交易明细
+                cursor.execute("DELETE FROM trade_details WHERE trade_id = ?", (trade_id,))
+                
+                # 删除修改历史
+                cursor.execute("DELETE FROM trade_modifications WHERE trade_id = ?", (trade_id,))
+                
+                # 删除交易主记录
+                cursor.execute("DELETE FROM trades WHERE id = ?", (trade_id,))
+                
+                conn.commit()
+                return True
+                
+        except Exception as e:
+            print(f"永久删除交易失败: {str(e)}")
+            return False
+    
+    def get_deleted_trades(self) -> List[Dict[str, Any]]:
+        """获取已删除的交易"""
+        query = '''
+            SELECT t.*, s.name as strategy_name
+            FROM trades t
+            LEFT JOIN strategies s ON t.strategy_id = s.id
+            WHERE t.is_deleted = 1
+            ORDER BY t.delete_date DESC
+        '''
+        
+        trades = self.db.execute_query(query)
+        return [dict(trade) for trade in trades]
+    
+    def record_modification(self, trade_id: int, detail_id: Optional[int], 
+                          modification_type: str, field_name: str, 
+                          old_value: str, new_value: str, reason: str = '') -> bool:
+        """记录修改历史"""
+        try:
+            self.db.execute_query('''
+                INSERT INTO trade_modifications (
+                    trade_id, detail_id, modification_type, field_name,
+                    old_value, new_value, modification_reason, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (trade_id, detail_id, modification_type, field_name, 
+                  old_value, new_value, reason), fetch_all=False)
+            return True
+            
+        except Exception as e:
+            print(f"记录修改历史失败: {str(e)}")
+            return False
+    
+    def get_trade_modifications(self, trade_id: int) -> List[Dict[str, Any]]:
+        """获取交易修改历史"""
+        query = '''
+            SELECT * FROM trade_modifications 
+            WHERE trade_id = ? 
+            ORDER BY created_at DESC
+        '''
+        
+        modifications = self.db.execute_query(query, (trade_id,))
+        return [dict(mod) for mod in modifications]
+    
+    def _resolve_strategy(self, strategy) -> Optional[int]:
+        """解析策略参数，返回策略ID"""
+        if isinstance(strategy, int):
+            # 验证策略ID是否存在且活跃
+            strategy_obj = self.strategy_service.get_strategy_by_id(strategy)
+            return strategy if strategy_obj and strategy_obj['is_active'] else None
+        elif isinstance(strategy, str):
+            # 根据策略名称查找
+            strategies = self.strategy_service.get_all_strategies()
+            for s in strategies:
+                if s['name'] == strategy:
+                    return s['id']
+            return None
+        else:
+            return None
+    
+    def _update_existing_trade_for_buy(self, cursor, trade_id: int, price: Decimal, 
+                                     quantity: int, transaction_date: str, 
+                                     transaction_fee: Decimal, amount: Decimal):
+        """更新现有交易的买入信息"""
+        # 获取当前交易信息
+        cursor.execute("SELECT * FROM trades WHERE id = ?", (trade_id,))
+        trade = cursor.fetchone()
+        
+        new_buy_amount = trade['total_buy_amount'] + float(amount)
+        new_buy_quantity = trade['total_buy_quantity'] + quantity
+        new_remaining = trade['remaining_quantity'] + quantity
+        
+        cursor.execute('''
+            UPDATE trades SET
+                total_buy_amount = ?, total_buy_quantity = ?, remaining_quantity = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (new_buy_amount, new_buy_quantity, new_remaining, trade_id))
+    
+    def _create_new_trade(self, cursor, strategy_id: int, symbol_code: str, 
+                        symbol_name: str, transaction_date: str) -> int:
+        """创建新的交易记录"""
+        cursor.execute('''
+            INSERT INTO trades (
+                strategy_id, symbol_code, symbol_name, open_date, status,
+                total_buy_amount, total_buy_quantity, remaining_quantity,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, 'open', 0, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ''', (strategy_id, symbol_code, symbol_name, transaction_date))
+        
+        return cursor.lastrowid

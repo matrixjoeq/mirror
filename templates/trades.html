@@ -12,7 +12,7 @@
                         <i class="bi bi-list-ul"></i> 交易记录
                     </h5>
                     <div class="d-flex gap-2">
-                        <a href="{{ url_for('deleted_trades') }}" class="btn btn-outline-warning">
+                        <a href="{{ url_for('trading.deleted_trades') }}" class="btn btn-outline-warning">
                             <i class="bi bi-trash"></i> 已删除记录
                         </a>
                         <button class="btn btn-danger" id="batchDeleteBtn" disabled>
@@ -24,7 +24,7 @@
                             </button>
                             <ul class="dropdown-menu">
                                 {% for strategy_code, strategy_name in strategies.items() %}
-                                <li><a class="dropdown-item" href="{{ url_for('add_buy') }}?strategy={{ strategy_code }}">{{ strategy_name }}</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('trading.add_buy') }}?strategy={{ strategy_code }}">{{ strategy_name }}</a></li>
                                 {% endfor %}
                             </ul>
                         </div>
@@ -36,15 +36,15 @@
                     <div class="col-md-6 mb-2">
                         <label class="form-label fw-bold">按状态筛选:</label>
                         <div class="btn-group w-100" role="group">
-                            <a href="{{ url_for('trades') }}?status=all{% if current_strategy != 'all' %}&strategy={{ current_strategy }}{% endif %}"
+                            <a href="{{ url_for('trading.trades') }}?status=all{% if current_strategy != 'all' %}&strategy={{ current_strategy }}{% endif %}"
                                class="btn btn-outline-primary {{ 'active' if current_status == 'all' else '' }}">
                                 全部
                             </a>
-                            <a href="{{ url_for('trades') }}?status=open{% if current_strategy != 'all' %}&strategy={{ current_strategy }}{% endif %}"
+                            <a href="{{ url_for('trading.trades') }}?status=open{% if current_strategy != 'all' %}&strategy={{ current_strategy }}{% endif %}"
                                class="btn btn-outline-success {{ 'active' if current_status == 'open' else '' }}">
                                 持仓中
                             </a>
-                            <a href="{{ url_for('trades') }}?status=closed{% if current_strategy != 'all' %}&strategy={{ current_strategy }}{% endif %}"
+                            <a href="{{ url_for('trading.trades') }}?status=closed{% if current_strategy != 'all' %}&strategy={{ current_strategy }}{% endif %}"
                                class="btn btn-outline-info {{ 'active' if current_status == 'closed' else '' }}">
                                 已平仓
                             </a>
@@ -53,12 +53,12 @@
                     <div class="col-md-6 mb-2">
                         <label class="form-label fw-bold">按策略筛选:</label>
                         <div class="btn-group w-100" role="group">
-                            <a href="{{ url_for('trades') }}?strategy=all{% if current_status != 'all' %}&status={{ current_status }}{% endif %}"
+                            <a href="{{ url_for('trading.trades') }}?strategy=all{% if current_status != 'all' %}&status={{ current_status }}{% endif %}"
                                class="btn btn-outline-secondary {{ 'active' if current_strategy == 'all' else '' }}">
                                 全部策略
                             </a>
                             {% for strategy_code, strategy_name in strategies.items() %}
-                            <a href="{{ url_for('trades') }}?strategy={{ strategy_code }}{% if current_status != 'all' %}&status={{ current_status }}{% endif %}"
+                            <a href="{{ url_for('trading.trades') }}?strategy={{ strategy_code }}{% if current_status != 'all' %}&status={{ current_status }}{% endif %}"
                                class="btn btn-outline-secondary {{ 'active' if current_strategy == strategy_code else '' }}">
                                 {{ strategy_name }}
                             </a>
@@ -157,12 +157,12 @@
                                     </td>
                                     <td>
                                         <div class="btn-group btn-group-sm" role="group">
-                                            <a href="{{ url_for('trade_details', trade_id=trade.id) }}"
+                                            <a href="{{ url_for('trading.trade_details', trade_id=trade.id) }}"
                                                class="btn btn-outline-info" title="查看详情">
                                                 <i class="bi bi-eye"></i>
                                             </a>
                                             {% if trade.status == 'open' and trade.remaining_quantity > 0 %}
-                                                <a href="{{ url_for('add_sell', trade_id=trade.id) }}"
+                                                <a href="{{ url_for('trading.add_sell', trade_id=trade.id) }}"
                                                    class="btn btn-outline-warning" title="卖出">
                                                     <i class="bi bi-dash-circle"></i>
                                                 </a>
@@ -182,7 +182,7 @@
                                         </button>
                                         <ul class="dropdown-menu">
                                             {% for strategy_code, strategy_name in strategies.items() %}
-                                            <li><a class="dropdown-item" href="{{ url_for('add_buy') }}?strategy={{ strategy_code }}">{{ strategy_name }}</a></li>
+                                            <li><a class="dropdown-item" href="{{ url_for('trading.add_buy') }}?strategy={{ strategy_code }}">{{ strategy_name }}</a></li>
                                             {% endfor %}
                                         </ul>
                                     </div>

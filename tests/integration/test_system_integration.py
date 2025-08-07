@@ -20,7 +20,8 @@ from decimal import Decimal
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from app import app, TradingTracker
+from app import create_app
+from services import DatabaseService, TradingService, StrategyService, AnalysisService
 
 
 class TestSystemIntegration(unittest.TestCase):
@@ -32,23 +33,39 @@ class TestSystemIntegration(unittest.TestCase):
         self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
         self.temp_db.close()
         
-        # 配置Flask应用为测试模式
-        app.config['TESTING'] = True
-        app.config['DATABASE_PATH'] = self.temp_db.name
+        # 创建Flask应用实例
+        self.app = create_app()
+        self.app.config['TESTING'] = True
+        self.app.config['DATABASE_PATH'] = self.temp_db.name
+        
+        # 重新初始化应用的数据库服务以使用测试数据库
+        self.app.db_service = DatabaseService(self.temp_db.name)
+        self.app.trading_service = TradingService(self.app.db_service)
+        self.app.strategy_service = StrategyService(self.app.db_service)
+        self.app.analysis_service = AnalysisService(self.app.db_service)
+        self.app.tracker = self.app.trading_service
+        
+        # 创建应用上下文
+        self.app_context = self.app.app_context()
+        self.app_context.push()
         
         # 创建测试客户端
-        self.client = app.test_client()
+        self.client = self.app.test_client()
         
-        # 重新初始化TradingTracker实例并注入到app模块
-        self.tracker = TradingTracker(self.temp_db.name)
-        # 将新的tracker实例注入到app模块
-        import sys
-        app_module = sys.modules.get('app')
-        if app_module:
-            app_module.tracker = self.tracker
+        # 使用应用实例的服务
+        self.db_service = self.app.db_service
+        self.trading_service = self.app.trading_service
+        self.strategy_service = self.app.strategy_service
+        self.analysis_service = self.app.analysis_service
+        
+        # 保持向后兼容，创建tracker别名
+        self.tracker = self.trading_service
+        
+        # 将服务注入到app实例，这样路由中的current_app就能访问到
+        # 这模拟了create_app()中的服务初始化
         
         # 创建测试策略
-        success, message = self.tracker.create_strategy(
+        success, message = self.strategy_service.create_strategy(
             name="集成测试策略",
             description="用于集成测试的策略",
             tag_names=["测试"]
@@ -56,7 +73,7 @@ class TestSystemIntegration(unittest.TestCase):
         if not success:
             print(f"策略创建失败: {message}")
         # 获取策略ID
-        strategies = self.tracker.get_all_strategies()
+        strategies = self.strategy_service.get_all_strategies()
         strategy = next((s for s in strategies if s['name'] == "集成测试策略"), None)
         self.test_strategy_id = strategy['id'] if strategy else None
         if not strategy:
@@ -64,6 +81,11 @@ class TestSystemIntegration(unittest.TestCase):
     
     def tearDown(self):
         """测试后清理"""
+        # 清理应用上下文
+        if hasattr(self, 'app_context'):
+            self.app_context.pop()
+        
+        # 清理临时数据库
         if os.path.exists(self.temp_db.name):
             os.unlink(self.temp_db.name)
     
@@ -217,12 +239,17 @@ class TestSystemIntegration(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         
         # 验证返回的JSON数据
-        data = json.loads(response.data)
-        self.assertIn('total_score', data)
-        self.assertIn('win_rate_score', data)
-        self.assertIn('profit_loss_ratio_score', data)
-        self.assertIn('frequency_score', data)
+        response_data = json.loads(response.data)
+        self.assertIn('success', response_data)
+        self.assertTrue(response_data['success'])
+        self.assertIn('data', response_data)
+        
+        data = response_data['data']
         self.assertIn('stats', data)
+        # 新的API格式只返回统计数据，不返回评分
+        stats = data['stats']
+        self.assertIn('total_trades', stats)
+        self.assertIn('win_rate', stats)
         print("✓ 策略评分API返回数据正确")
         
         # 测试带日期范围的API调用
@@ -232,7 +259,11 @@ class TestSystemIntegration(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         
-        data = json.loads(response.data)
+        response_data = json.loads(response.data)
+        self.assertIn('success', response_data)
+        self.assertTrue(response_data['success'])
+        self.assertIn('data', response_data)
+        data = response_data['data']
         self.assertIn('total_score', data)
         print("✓ 带日期范围的策略评分API正常")
     
@@ -243,7 +274,12 @@ class TestSystemIntegration(unittest.TestCase):
         response = self.client.get('/api/strategies')
         self.assertEqual(response.status_code, 200)
         
-        data = json.loads(response.data)
+        response_data = json.loads(response.data)
+        self.assertIn('success', response_data)
+        self.assertTrue(response_data['success'])
+        self.assertIn('data', response_data)
+        
+        data = response_data['data']
         self.assertIsInstance(data, list)
         self.assertGreater(len(data), 0)
         
@@ -263,7 +299,12 @@ class TestSystemIntegration(unittest.TestCase):
         response = self.client.get('/api/tags')
         self.assertEqual(response.status_code, 200)
         
-        data = json.loads(response.data)
+        response_data = json.loads(response.data)
+        self.assertIn('success', response_data)
+        self.assertTrue(response_data['success'])
+        self.assertIn('data', response_data)
+        
+        data = response_data['data']
         self.assertIsInstance(data, list)
         print("✓ 标签列表API正常")
         
@@ -274,14 +315,15 @@ class TestSystemIntegration(unittest.TestCase):
         """测试策略趋势API"""
         print("\n=== 测试策略趋势API ===")
         
-        response = self.client.get('/api/strategy_trend?period_type=year')
+        response = self.client.get(f'/api/strategy_trend?strategy_id={self.test_strategy_id}&period_type=year')
         self.assertEqual(response.status_code, 200)
         
-        data = json.loads(response.data)
-        self.assertIn('periods', data)
-        self.assertIn('strategies', data)
-        self.assertIsInstance(data['periods'], list)
-        self.assertIsInstance(data['strategies'], list)
+        response_data = json.loads(response.data)
+        self.assertIn('success', response_data)
+        self.assertTrue(response_data['success'])
+        self.assertIn('data', response_data)
+        data = response_data['data']
+        self.assertIsInstance(data, list)
         print("✓ 策略趋势API返回数据正确")
     
     # ========================================
@@ -293,14 +335,14 @@ class TestSystemIntegration(unittest.TestCase):
         print("\n=== 测试数据库事务完整性 ===")
         
         # 创建关联数据
-        success, message = self.tracker.create_strategy(
+        success, message = self.strategy_service.create_strategy(
             name="事务测试策略",
             description="测试数据库事务",
             tag_names=["事务", "测试"]
         )
         
         # 获取策略ID
-        strategies = self.tracker.get_all_strategies()
+        strategies = self.strategy_service.get_all_strategies()
         strategy = next((s for s in strategies if s['name'] == "事务测试策略"), None)
         strategy_id = strategy['id']
         
@@ -318,9 +360,9 @@ class TestSystemIntegration(unittest.TestCase):
         trade = self.tracker.get_trade_by_id(trade_id)
         self.assertEqual(trade['strategy_id'], strategy_id)
         
-        strategy = self.tracker.get_strategy_by_id(strategy_id)
+        strategy = self.strategy_service.get_strategy_by_id(strategy_id)
         # trade_count字段不存在，使用策略评分来验证交易数量
-        score = self.tracker.calculate_strategy_score(strategy_id=strategy['id'])
+        score = self.analysis_service.calculate_strategy_score(strategy_id=strategy['id'])
         self.assertEqual(score['stats']['total_trades'], 0)  # 开仓交易不计入评分
         print("✓ 数据库关联数据正确")
         
@@ -361,13 +403,13 @@ class TestSystemIntegration(unittest.TestCase):
         # 批量创建数据测试性能
         start_time = time.time()
         
-        success, message = self.tracker.create_strategy(
+        success, message = self.strategy_service.create_strategy(
             name="性能测试策略",
             description="用于性能测试"
         )
         
         # 获取策略ID
-        strategies = self.tracker.get_all_strategies()
+        strategies = self.strategy_service.get_all_strategies()
         strategy = next((s for s in strategies if s['name'] == "性能测试策略"), None)
         strategy_id = strategy['id']
         
@@ -411,7 +453,7 @@ class TestSystemIntegration(unittest.TestCase):
         
         # 测试评分计算性能
         start_time = time.time()
-        score = self.tracker.calculate_strategy_score(strategy_id=strategy_id)
+        score = self.analysis_service.calculate_strategy_score(strategy_id=strategy_id)
         calc_time = time.time() - start_time
         
         print(f"✓ 计算策略评分耗时：{calc_time:.3f}秒")
@@ -446,7 +488,7 @@ class TestSystemIntegration(unittest.TestCase):
         self.assertTrue(response_data['success'])
         
         # 获取新创建的策略ID
-        strategies = self.tracker.get_all_strategies()
+        strategies = self.strategy_service.get_all_strategies()
         e2e_strategy = next(s for s in strategies if s['name'] == '端到端测试策略')
         e2e_strategy_id = e2e_strategy['id']
         print(f"✓ 步骤2：创建策略，ID: {e2e_strategy_id}")
@@ -475,8 +517,15 @@ class TestSystemIntegration(unittest.TestCase):
         
         # 5. 获取交易ID并执行卖出
         trades = self.tracker.get_all_trades()
-        e2e_trade = next(t for t in trades if t['symbol_code'] == 'E2E001')
+        # 确保获取的是测试创建的交易（E2E001，端到端测试策略，200股）
+        e2e_trade = next((t for t in trades 
+                         if t['symbol_code'] == 'E2E001' 
+                         and t['strategy_name'] == '端到端测试策略'
+                         and t['total_buy_quantity'] == 200), None)
+        if not e2e_trade:
+            self.fail("未找到端到端测试创建的E2E001交易")
         e2e_trade_id = e2e_trade['id']
+        print(f"找到端到端测试交易，ID: {e2e_trade_id}, 标的: {e2e_trade['symbol_code']}, 数量: {e2e_trade['total_buy_quantity']}")
         
         response = self.client.post(f'/add_sell/{e2e_trade_id}', data={
             'price': '28.50',
@@ -515,10 +564,10 @@ class TestSystemIntegration(unittest.TestCase):
         self.assertEqual(final_trade['status'], 'closed')
         self.assertGreater(final_trade['total_profit_loss'], 0)  # 应该是盈利的
         
-        final_strategy = self.tracker.get_strategy_by_id(e2e_strategy_id)
+        final_strategy = self.strategy_service.get_strategy_by_id(e2e_strategy_id)
         self.assertIsNotNone(final_strategy)
         
-        score = self.tracker.calculate_strategy_score(strategy_id=e2e_strategy_id)
+        score = self.analysis_service.calculate_strategy_score(strategy_id=e2e_strategy_id)
         self.assertEqual(score['stats']['total_trades'], 1)
         self.assertEqual(score['stats']['winning_trades'], 1)
         

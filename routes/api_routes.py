@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+API路由
+"""
+
+from flask import Blueprint, jsonify, request, current_app
+
+from services import StrategyService, AnalysisService
+from utils.decorators import handle_errors, require_json
+
+api_bp = Blueprint('api', __name__, url_prefix='/api')
+
+
+@api_bp.route('/strategies')
+@handle_errors
+def get_strategies():
+    """获取所有策略的API"""
+    strategy_service = StrategyService(current_app.db_service)
+    strategies = strategy_service.get_all_strategies()
+    
+    return jsonify({
+        'success': True,
+        'data': strategies
+    })
+
+
+@api_bp.route('/tags')
+@handle_errors
+def get_tags():
+    """获取所有标签的API"""
+    strategy_service = StrategyService(current_app.db_service)
+    tags = strategy_service.get_all_tags()
+    
+    return jsonify({
+        'success': True,
+        'data': tags
+    })
+
+
+@api_bp.route('/tag/create', methods=['POST'])
+@handle_errors
+def create_tag():
+    """创建标签的API"""
+    strategy_service = StrategyService(current_app.db_service)
+    
+    name = request.form.get('name') or (request.json.get('name') if request.is_json else None)
+    
+    if not name:
+        return jsonify({
+            'success': False,
+            'message': '标签名称不能为空'
+        }), 400
+    
+    success, message = strategy_service.create_tag(name)
+    
+    return jsonify({
+        'success': success,
+        'message': message
+    })
+
+
+@api_bp.route('/tag/<int:tag_id>/update', methods=['POST'])
+@handle_errors
+def update_tag(tag_id):
+    """更新标签的API"""
+    strategy_service = StrategyService(current_app.db_service)
+    
+    new_name = request.form.get('new_name') or (request.json.get('new_name') if request.is_json else None)
+    
+    if not new_name:
+        return jsonify({
+            'success': False,
+            'message': '新标签名称不能为空'
+        }), 400
+    
+    success, message = strategy_service.update_tag(tag_id, new_name)
+    
+    return jsonify({
+        'success': success,
+        'message': message
+    })
+
+
+@api_bp.route('/tag/<int:tag_id>/delete', methods=['POST'])
+@handle_errors
+def delete_tag(tag_id):
+    """删除标签的API"""
+    strategy_service = StrategyService(current_app.db_service)
+    
+    success, message = strategy_service.delete_tag(tag_id)
+    
+    return jsonify({
+        'success': success,
+        'message': message
+    })
+
+
+@api_bp.route('/strategy_score')
+@handle_errors
+def get_strategy_score():
+    """获取策略评分的API"""
+    analysis_service = AnalysisService(current_app.db_service)
+    
+    # 获取查询参数
+    strategy_id = request.args.get('strategy_id', type=int)
+    strategy = request.args.get('strategy')
+    symbol_code = request.args.get('symbol_code')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    
+    score = analysis_service.calculate_strategy_score(
+        strategy_id=strategy_id,
+        strategy=strategy,
+        symbol_code=symbol_code,
+        start_date=start_date,
+        end_date=end_date
+    )
+    
+    # 为向后兼容，添加旧的评分字段
+    if 'stats' in score:
+        stats = score['stats']
+        # 计算旧评分字段
+        score['win_rate_score'] = min(stats['win_rate'] / 10, 10)  # 胜率百分比除以10
+        
+        # 盈亏比评分：基于总收益率的简化计算
+        if stats['total_return_rate'] <= 0:
+            score['profit_loss_ratio_score'] = 0
+        else:
+            score['profit_loss_ratio_score'] = min(stats['total_return_rate'] / 10, 10)
+        
+        # 频率评分：基于平均持仓天数
+        if stats['avg_holding_days'] <= 1:
+            score['frequency_score'] = 8
+        elif stats['avg_holding_days'] <= 7:
+            score['frequency_score'] = 7
+        elif stats['avg_holding_days'] <= 30:
+            score['frequency_score'] = 6
+        else:
+            score['frequency_score'] = max(0, 6 - (stats['avg_holding_days'] - 30) / 30)
+        
+        # 总分
+        score['total_score'] = score['win_rate_score'] + score['profit_loss_ratio_score'] + score['frequency_score']
+    
+    return jsonify({
+        'success': True,
+        'data': score
+    })
+
+
+@api_bp.route('/strategy_trend')
+@handle_errors
+def get_strategy_trend():
+    """获取策略趋势数据的API"""
+    analysis_service = AnalysisService(current_app.db_service)
+    
+    strategy_id = request.args.get('strategy_id', type=int)
+    period_type = request.args.get('period_type', 'month')  # year, quarter, month
+    
+    if not strategy_id:
+        return jsonify({
+            'success': False,
+            'message': '策略ID不能为空'
+        }), 400
+    
+    try:
+        # 获取时间周期列表
+        periods = analysis_service.get_time_periods(period_type)
+        
+        # 计算每个周期的表现
+        trend_data = []
+        for period in periods:
+            start_date, end_date = analysis_service._get_period_date_range(period, period_type)
+            score = analysis_service.calculate_strategy_score(
+                strategy_id=strategy_id,
+                start_date=start_date,
+                end_date=end_date
+            )
+            
+            trend_data.append({
+                'period': period,
+                'return_rate': score['stats']['total_return_rate'],
+                'win_rate': score['stats']['win_rate'],
+                'trades_count': score['stats']['total_trades']
+            })
+        
+        # 按时间排序
+        trend_data.sort(key=lambda x: x['period'])
+        
+        return jsonify({
+            'success': True,
+            'data': trend_data
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取策略趋势失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取策略趋势失败: {str(e)}'
+        }), 500
+
+
+@api_bp.errorhandler(404)
+def api_not_found(error):
+    """API 404错误处理"""
+    return jsonify({
+        'success': False,
+        'message': 'API接口不存在'
+    }), 404
+
+
+@api_bp.errorhandler(405)
+def api_method_not_allowed(error):
+    """API 405错误处理"""
+    return jsonify({
+        'success': False,
+        'message': '请求方法不被允许'
+    }), 405
+
+
+@api_bp.errorhandler(500)
+def api_internal_error(error):
+    """API 500错误处理"""
+    return jsonify({
+        'success': False,
+        'message': '服务器内部错误'
+    }), 500

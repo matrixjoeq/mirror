@@ -7,7 +7,7 @@
     <div class="col-12">
         <!-- 返回按钮 -->
         <div class="mb-3">
-            <a href="{{ url_for('trades') }}" class="btn btn-outline-secondary">
+            <a href="{{ url_for('trading.trades') }}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> 返回交易列表
             </a>
         </div>
@@ -97,7 +97,7 @@
                 {% if trade.status == 'open' and trade.remaining_quantity > 0 %}
                 <hr>
                 <div class="text-center">
-                    <a href="{{ url_for('add_sell', trade_id=trade.id) }}" class="btn btn-warning">
+                    <a href="{{ url_for('trading.add_sell', trade_id=trade.id) }}" class="btn btn-warning">
                         <i class="bi bi-dash-circle"></i> 卖出股份
                     </a>
                 </div>
@@ -105,7 +105,7 @@
                 <hr>
                 <div class="text-center">
                     <div class="d-flex gap-2 justify-content-center">
-                        <a href="{{ url_for('edit_trade', trade_id=trade.id) }}" class="btn btn-primary">
+                        <a href="{{ url_for('trading.edit_trade', trade_id=trade.id) }}" class="btn btn-primary">
                             <i class="bi bi-pencil-square"></i> 修改记录
                         </a>
                         <button class="btn btn-danger" id="deleteSingleBtn" data-trade-id="{{ trade.id }}">

@@ -9,7 +9,7 @@
             <div class="card-header">
                 <h5 class="card-title mb-0">
                     <i class="bi bi-calendar-range"></i> 时间段策略比较
-                    <a href="{{ url_for('strategy_scores') }}" class="btn btn-outline-secondary btn-sm float-end">
+                    <a href="{{ url_for('analysis.strategy_scores') }}" class="btn btn-outline-secondary btn-sm float-end">
                         <i class="bi bi-arrow-left"></i> 返回策略评分
                     </a>
                 </h5>
@@ -468,7 +468,7 @@ function drawTrendChart(trendData) {
 
 function changePeriodType() {
     const periodType = document.getElementById('periodTypeSelect').value;
-    window.location.href = `{{ url_for('time_comparison') }}?period_type=${periodType}`;
+    window.location.href = `{{ url_for('analysis.time_comparison') }}?period_type=${periodType}`;
 }
 </script>
 {% endblock %}

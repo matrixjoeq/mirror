@@ -14,12 +14,12 @@
             </div>
             <div class="card-body">
                 <div class="btn-group" role="group">
-                    <a href="{{ url_for('index') }}?strategy=all" 
+                    <a href="{{ url_for('main.index') }}?strategy=all" 
                        class="btn {{ 'btn-primary' if stats.selected_strategy == 'all' else 'btn-outline-primary' }}">
                         全部策略
                     </a>
                     {% for strategy_code, strategy_name in strategies.items() %}
-                    <a href="{{ url_for('index') }}?strategy={{ strategy_code }}" 
+                    <a href="{{ url_for('main.index') }}?strategy={{ strategy_code }}" 
                        class="btn {{ 'btn-primary' if stats.selected_strategy == strategy_code else 'btn-outline-primary' }}">
                         {{ strategy_name }}
                     </a>
@@ -143,7 +143,7 @@
                 <h5 class="card-title mb-0">
                     <i class="bi bi-clock-history"></i> 最近交易
                 </h5>
-                <a href="{{ url_for('trades') }}" class="btn btn-outline-primary btn-sm">
+                <a href="{{ url_for('trading.trades') }}" class="btn btn-outline-primary btn-sm">
                     查看全部 <i class="bi bi-arrow-right"></i>
                 </a>
             </div>
@@ -197,7 +197,7 @@
                                     </td>
                                     <td>
                                         <span class="badge bg-secondary me-1">{{ trade.strategy_name }}</span>
-                                        <a href="{{ url_for('trade_details', trade_id=trade.id) }}" 
+                                        <a href="{{ url_for('trading.trade_details', trade_id=trade.id) }}" 
                                            class="btn btn-outline-info btn-sm">
                                             <i class="bi bi-eye"></i>
                                         </a>
@@ -208,7 +208,7 @@
                                 <tr>
                                     <td colspan="7" class="text-center text-muted">
                                         <i class="bi bi-inbox"></i> 暂无交易记录<br>
-                                        <a href="{{ url_for('add_buy') }}" class="btn btn-success btn-sm mt-2">
+                                        <a href="{{ url_for('trading.add_buy') }}" class="btn btn-success btn-sm mt-2">
                                             <i class="bi bi-plus-circle"></i> 创建第一笔交易
                                         </a>
                                     </td>
@@ -240,25 +240,25 @@
                             </button>
                             <ul class="dropdown-menu w-100">
                                 {% for strategy_code, strategy_name in strategies.items() %}
-                                <li><a class="dropdown-item" href="{{ url_for('add_buy') }}?strategy={{ strategy_code }}">{{ strategy_name }}</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('trading.add_buy') }}?strategy={{ strategy_code }}">{{ strategy_name }}</a></li>
                                 {% endfor %}
                             </ul>
                         </div>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('trades') }}?status=open{% if stats.selected_strategy != 'all' %}&strategy={{ stats.selected_strategy }}{% endif %}" class="btn btn-info btn-lg w-100">
+                        <a href="{{ url_for('trading.trades') }}?status=open{% if stats.selected_strategy != 'all' %}&strategy={{ stats.selected_strategy }}{% endif %}" class="btn btn-info btn-lg w-100">
                             <i class="bi bi-list-check"></i><br>
                             管理持仓
                         </a>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('trades') }}{% if stats.selected_strategy != 'all' %}?strategy={{ stats.selected_strategy }}{% endif %}" class="btn btn-warning btn-lg w-100">
+                        <a href="{{ url_for('trading.trades') }}{% if stats.selected_strategy != 'all' %}?strategy={{ stats.selected_strategy }}{% endif %}" class="btn btn-warning btn-lg w-100">
                             <i class="bi bi-bar-chart-line"></i><br>
                             查看交易记录
                         </a>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('strategy_scores') }}" class="btn btn-success btn-lg w-100">
+                        <a href="{{ url_for('analysis.strategy_scores') }}" class="btn btn-success btn-lg w-100">
                             <i class="bi bi-award"></i><br>
                             策略评分
                         </a>
@@ -268,19 +268,19 @@
                 <!-- 第二行快捷操作 -->
                 <div class="row">
                     <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('strategies') }}" class="btn btn-primary btn-lg w-100">
+                        <a href="{{ url_for('strategy.strategies') }}" class="btn btn-primary btn-lg w-100">
                             <i class="bi bi-diagram-3"></i><br>
                             策略管理
                         </a>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('create_strategy') }}" class="btn btn-outline-primary btn-lg w-100">
+                        <a href="{{ url_for('strategy.create_strategy') }}" class="btn btn-outline-primary btn-lg w-100">
                             <i class="bi bi-plus-square"></i><br>
                             新建策略
                         </a>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('deleted_trades') }}" class="btn btn-outline-secondary btn-lg w-100">
+                        <a href="{{ url_for('trading.deleted_trades') }}" class="btn btn-outline-secondary btn-lg w-100">
                             <i class="bi bi-trash"></i><br>
                             已删除记录
                         </a>
@@ -339,10 +339,10 @@
                                     </div>
                                 </div>
                                 <div class="mt-3">
-                                    <a href="{{ url_for('index') }}?strategy={{ strategy_code }}" class="btn btn-outline-primary btn-sm me-2">
+                                    <a href="{{ url_for('main.index') }}?strategy={{ strategy_code }}" class="btn btn-outline-primary btn-sm me-2">
                                         <i class="bi bi-eye"></i> 查看详情
                                     </a>
-                                    <a href="{{ url_for('add_buy') }}?strategy={{ strategy_code }}" class="btn btn-outline-success btn-sm">
+                                    <a href="{{ url_for('trading.add_buy') }}?strategy={{ strategy_code }}" class="btn btn-outline-success btn-sm">
                                         <i class="bi bi-plus"></i> 新建交易
                                     </a>
                                 </div>
