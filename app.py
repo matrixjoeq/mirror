@@ -852,6 +852,25 @@ class TradingTracker:
 
         return [dict(trade) for trade in trades]
 
+    def get_trade_by_id(self, trade_id):
+        """根据ID获取单个交易"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute('''
+                SELECT t.*, s.name as strategy_name
+                FROM trades t
+                LEFT JOIN strategies s ON t.strategy_id = s.id
+                WHERE t.id = ? AND t.deleted_at IS NULL
+            ''', (trade_id,))
+
+            trade = cursor.fetchone()
+            return dict(trade) if trade else None
+
+        finally:
+            conn.close()
+
     def get_trade_details(self, trade_id, include_deleted=False):
         """获取交易明细"""
         conn = self.get_connection()
@@ -2333,7 +2352,18 @@ def create_strategy():
                 return jsonify({'success': False, 'message': '策略名称不能为空'})
 
             success, message = tracker.create_strategy(name, description, tag_names)
-            return jsonify({'success': success, 'message': message})
+
+            # 检查是否是AJAX请求
+            if request.headers.get('Content-Type') == 'application/json' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': success, 'message': message})
+            else:
+                # 传统表单提交，重定向到策略管理页面
+                if success:
+                    return redirect(url_for('strategies'))
+                else:
+                    # 如果失败，返回表单页面并显示错误
+                    tags_data = tracker.get_all_tags()
+                    return render_template('create_strategy.html', tags=tags_data, error=message)
 
         except Exception as e:
             return jsonify({'success': False, 'message': f'创建策略失败: {str(e)}'})
@@ -2573,6 +2603,7 @@ def strategy_detail(strategy_id):
     return render_template('strategy_detail.html',
                          strategy_id=strategy_id,
                          strategy=strategy,
+                         strategy_name=strategy['name'],
                          strategy_score=strategy_score,
                          symbol_scores=symbol_scores,
                          sort_by=sort_by,
@@ -2589,12 +2620,19 @@ def api_strategy_score():
     end_date = request.args.get('end_date')
 
     # 优先使用strategy_id，如果没有则使用strategy（向后兼容）
-    if strategy_id:
-        score = tracker.calculate_strategy_score(strategy_id=int(strategy_id), symbol_code=symbol_code, start_date=start_date, end_date=end_date)
-    else:
-        score = tracker.calculate_strategy_score(strategy=strategy, symbol_code=symbol_code, start_date=start_date, end_date=end_date)
+    try:
+        if strategy_id:
+            try:
+                strategy_id_int = int(strategy_id)
+            except ValueError:
+                return jsonify({'error': 'Invalid strategy_id parameter'}), 400
+            score = tracker.calculate_strategy_score(strategy_id=strategy_id_int, symbol_code=symbol_code, start_date=start_date, end_date=end_date)
+        else:
+            score = tracker.calculate_strategy_score(strategy=strategy, symbol_code=symbol_code, start_date=start_date, end_date=end_date)
 
-    return jsonify(score)
+        return jsonify(score)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/symbol_comparison')
 def symbol_comparison():
