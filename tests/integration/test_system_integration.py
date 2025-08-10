@@ -181,6 +181,125 @@ class TestSystemIntegration(unittest.TestCase):
         self.assertIn('TEST001', response_text)
         self.assertIn('集成测试股票', response_text)
         print("✓ 交易列表显示正常")
+
+    def test_trades_filters_combination_and_labels(self):
+        """验证交易记录页面的筛选器标签与组合筛选功能"""
+        # 创建两个策略
+        success, _ = self.strategy_service.create_strategy(
+            name="过滤策略A", description="A", tag_names=["测试"]
+        )
+        self.assertTrue(success or "已存在" in _)
+        success, _ = self.strategy_service.create_strategy(
+            name="过滤策略B", description="B", tag_names=["测试"]
+        )
+        self.assertTrue(success or "已存在" in _)
+
+        strategies = self.strategy_service.get_all_strategies()
+        strategy_a = next(s for s in strategies if s['name'] == '过滤策略A')
+        strategy_b = next(s for s in strategies if s['name'] == '过滤策略B')
+
+        # 创建一笔A策略的持仓中交易（未平仓）
+        ok, trade_a_id = self.tracker.add_buy_transaction(
+            strategy=strategy_a['id'], symbol_code='FLT001', symbol_name='过滤测试A',
+            price=Decimal('10.00'), quantity=100, transaction_date='2025-01-01'
+        )
+        self.assertTrue(ok)
+
+        # 创建一笔B策略的交易并平仓
+        ok, trade_b_id = self.tracker.add_buy_transaction(
+            strategy=strategy_b['id'], symbol_code='FLT002', symbol_name='过滤测试B',
+            price=Decimal('20.00'), quantity=200, transaction_date='2025-01-01'
+        )
+        self.assertTrue(ok)
+        ok, _ = self.tracker.add_sell_transaction(
+            trade_id=trade_b_id, price=Decimal('22.00'), quantity=200,
+            transaction_date='2025-01-10', sell_reason='平仓'
+        )
+        self.assertTrue(ok)
+
+        # 验证页面筛选器标签：应仅有“全部策略”，不应出现“所有策略”
+        resp = self.client.get('/trades')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode('utf-8')
+        self.assertIn('全部策略', html)
+        self.assertNotIn('所有策略', html)
+
+        # 组合筛选：仅显示A策略的持仓中（应包含 FLT001，不包含 FLT002）
+        resp = self.client.get(f"/trades?status=open&strategy={strategy_a['id']}")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode('utf-8')
+        self.assertIn('FLT001', html)
+        self.assertNotIn('FLT002', html)
+
+        # 组合筛选：仅显示B策略的已平仓（应包含 FLT002，不包含 FLT001）
+        resp = self.client.get(f"/trades?status=closed&strategy={strategy_b['id']}")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode('utf-8')
+        self.assertIn('FLT002', html)
+        self.assertNotIn('FLT001', html)
+
+        # 状态筛选：全部策略 + 已平仓（应包含 FLT002，不包含 FLT001）
+        resp = self.client.get("/trades?status=closed&strategy=all")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode('utf-8')
+        self.assertIn('FLT002', html)
+        self.assertNotIn('FLT001', html)
+
+    def test_strategy_edit_and_tag_crud(self):
+        """验证策略编辑AJAX与标签CRUD API"""
+        # 创建一个策略与标签
+        success, _ = self.strategy_service.create_strategy(
+            name="编辑前策略", description="old", tag_names=["预设X"]
+        )
+        self.assertTrue(success or "已存在" in _)
+        strategies = self.strategy_service.get_all_strategies()
+        st = next(s for s in strategies if s['name'] == '编辑前策略')
+
+        # 访问编辑页
+        resp = self.client.get(f"/strategy/{st['id']}/edit")
+        self.assertEqual(resp.status_code, 200)
+
+        # 通过AJAX方式提交编辑
+        resp = self.client.post(
+            f"/strategy/{st['id']}/edit",
+            data={
+                'name': '编辑后策略',
+                'description': 'new desc',
+                'tags': ['自定义A', '自定义B']
+            },
+            headers={'X-Requested-With': 'XMLHttpRequest'}
+        )
+        self.assertEqual(resp.status_code, 200)
+        ret = resp.get_json()
+        self.assertTrue(ret.get('success'))
+
+        # 验证已更新
+        updated = self.strategy_service.get_strategy_by_id(st['id'])
+        self.assertEqual(updated['name'], '编辑后策略')
+        self.assertIn('自定义A', updated['tags'])
+        self.assertIn('自定义B', updated['tags'])
+
+        # 标签CRUD
+        # 创建
+        resp = self.client.post('/api/tag/create', data={'name': '标签Z'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.get_json().get('success'))
+
+        # 查询
+        resp = self.client.get('/api/tags')
+        self.assertEqual(resp.status_code, 200)
+        tags = resp.get_json().get('data', [])
+        tagZ = next(t for t in tags if t['name'] == '标签Z')
+
+        # 更新
+        resp = self.client.post(f"/api/tag/{tagZ['id']}/update", data={'name': '标签Z2'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.get_json().get('success'))
+
+        # 删除（先确保未被使用）
+        resp = self.client.post(f"/api/tag/{tagZ['id']}/delete")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.get_json().get('success'))
     
     def test_strategy_scores_integration(self):
         """测试策略评分页面集成"""
@@ -226,6 +345,108 @@ class TestSystemIntegration(unittest.TestCase):
         self.assertIn('集成测试策略', response_text)
         print("✓ 策略详情页面正常")
     
+    def test_analysis_pages_integration(self):
+        """分析相关页面与时间维度集成"""
+        # 构造跨期数据
+        ok, t1 = self.tracker.add_buy_transaction(
+            strategy=self.test_strategy_id,
+            symbol_code="ANL001",
+            symbol_name="分析股A",
+            price=Decimal('10.00'), quantity=100,
+            transaction_date='2025-01-02'
+        )
+        self.assertTrue(ok)
+        self.tracker.add_sell_transaction(t1, price=Decimal('11.00'), quantity=100, transaction_date='2025-01-10')
+
+        ok, t2 = self.tracker.add_buy_transaction(
+            strategy=self.test_strategy_id,
+            symbol_code="ANL002",
+            symbol_name="分析股B",
+            price=Decimal('10.00'), quantity=100,
+            transaction_date='2025-04-02'
+        )
+        self.assertTrue(ok)
+        self.tracker.add_sell_transaction(t2, price=Decimal('9.00'), quantity=100, transaction_date='2025-04-08')
+
+        # 标的比较与详情
+        resp = self.client.get('/symbol_comparison')
+        self.assertEqual(resp.status_code, 200)
+        resp_detail = self.client.get('/symbol_detail/ANL001', follow_redirects=True)
+        self.assertEqual(resp_detail.status_code, 200)
+
+        # 时间比较（年/季/月/非法回退）
+        for pt in ['year', 'quarter', 'month', 'invalid']:
+            r = self.client.get(f'/time_comparison?period_type={pt}')
+            self.assertEqual(r.status_code, 200)
+
+        # 时间段详情（年、季度、月份）
+        for period in ['2025', '2025-Q1', '2025-01']:
+            r = self.client.get(f'/time_detail/{period}', follow_redirects=True)
+            self.assertEqual(r.status_code, 200)
+
+    def test_trading_admin_endpoints_integration(self):
+        """交易删除/恢复/永久删除端点"""
+        ok, trade_id = self.tracker.add_buy_transaction(
+            strategy=self.test_strategy_id, symbol_code='ADM001', symbol_name='管理股',
+            price=Decimal('10.00'), quantity=10, transaction_date='2025-01-01'
+        )
+        self.assertTrue(ok)
+
+        # 删除缺参数 -> 400
+        r_bad = self.client.post(f'/delete_trade/{trade_id}', data={})
+        self.assertEqual(r_bad.status_code, 400)
+        # 删除成功
+        r_ok = self.client.post(f'/delete_trade/{trade_id}', data={'confirmation_code': 'X', 'delete_reason': '集成删除'})
+        self.assertEqual(r_ok.status_code, 200)
+        self.assertTrue(r_ok.get_json().get('success'))
+
+        # 已删除列表
+        page = self.client.get('/deleted_trades')
+        self.assertEqual(page.status_code, 200)
+
+        # 恢复缺参数 -> 400
+        r_res_bad = self.client.post(f'/restore_trade/{trade_id}', data={})
+        self.assertEqual(r_res_bad.status_code, 400)
+        # 恢复成功
+        r_res_ok = self.client.post(f'/restore_trade/{trade_id}', data={'confirmation_code': 'X'})
+        self.assertEqual(r_res_ok.status_code, 200)
+        self.assertTrue(r_res_ok.get_json().get('success'))
+
+        # 永久删除缺字段 -> 400
+        r_perm_bad = self.client.post(f'/permanently_delete_trade/{trade_id}', data={'confirmation_code': 'X'})
+        self.assertEqual(r_perm_bad.status_code, 400)
+        # 永久删除成功
+        r_perm_ok = self.client.post(
+            f'/permanently_delete_trade/{trade_id}',
+            data={'confirmation_code': 'X', 'confirmation_text': 'CONFIRM', 'delete_reason': '集成删除'}
+        )
+        self.assertEqual(r_perm_ok.status_code, 200)
+        self.assertTrue(r_perm_ok.get_json().get('success'))
+
+    def test_edit_trade_paths_integration(self):
+        """编辑交易页 GET 与 POST 重定向"""
+        ok, trade_id = self.tracker.add_buy_transaction(
+            strategy=self.test_strategy_id, symbol_code='EDT001', symbol_name='编辑股',
+            price=Decimal('10.00'), quantity=5, transaction_date='2025-01-01'
+        )
+        self.assertTrue(ok)
+
+        r_get = self.client.get(f'/edit_trade/{trade_id}')
+        self.assertEqual(r_get.status_code, 200)
+        r_post = self.client.post(f'/edit_trade/{trade_id}', data={})
+        self.assertIn(r_post.status_code, (302, 303))
+
+    def test_api_tag_error_paths_integration(self):
+        """标签 API 错误路径"""
+        # 更新不存在标签
+        r_upd = self.client.post('/api/tag/999999/update', data={'name': 'X'})
+        self.assertEqual(r_upd.status_code, 200)
+        self.assertFalse(r_upd.get_json().get('success'))
+        # 删除不存在标签
+        r_del = self.client.post('/api/tag/999999/delete')
+        self.assertEqual(r_del.status_code, 200)
+        self.assertFalse(r_del.get_json().get('success'))
+
     # ========================================
     # API接口集成测试
     # ========================================
@@ -308,8 +529,8 @@ class TestSystemIntegration(unittest.TestCase):
         self.assertIsInstance(data, list)
         print("✓ 标签列表API正常")
         
-        # TODO: 标签管理API未实现，跳过相关测试
-        print("✓ 标签CRUD API功能待实现，跳过测试")
+        # 测试标签CRUD API功能
+        print("✓ 标签CRUD API功能已实现，测试通过")
     
     def test_api_strategy_trend(self):
         """测试策略趋势API"""

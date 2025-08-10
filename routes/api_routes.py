@@ -38,6 +38,44 @@ def get_tags():
     })
 
 
+@api_bp.route('/symbol_lookup')
+@handle_errors
+def symbol_lookup():
+    """根据已存在交易记录，通过标的代码查询其常用名称。
+
+    用途：在新建买入时自动回填标的名称。
+    """
+    symbol_code = request.args.get('symbol_code', '').strip()
+    if not symbol_code:
+        return jsonify({'success': False, 'message': 'symbol_code 不能为空'}), 400
+
+    db = current_app.db_service
+    # 取最近更新的一条记录的名称
+    row = db.execute_query(
+        """
+        SELECT symbol_name
+        FROM trades
+        WHERE UPPER(symbol_code) = ?
+        ORDER BY updated_at DESC
+        LIMIT 1
+        """,
+        (symbol_code.upper(),),
+        fetch_one=True,
+    )
+
+    if row and row.get('symbol_name'):
+        return jsonify({
+            'success': True,
+            'found': True,
+            'data': {
+                'symbol_code': symbol_code.upper(),
+                'symbol_name': row['symbol_name'],
+            }
+        })
+
+    return jsonify({'success': True, 'found': False, 'data': {'symbol_code': symbol_code.upper()}})
+
+
 @api_bp.route('/tag/create', methods=['POST'])
 @handle_errors
 def create_tag():
@@ -66,7 +104,13 @@ def update_tag(tag_id):
     """更新标签的API"""
     strategy_service = StrategyService(current_app.db_service)
     
-    new_name = request.form.get('new_name') or (request.json.get('new_name') if request.is_json else None)
+    # 兼容前端可能传递的 name 或 new_name
+    new_name = (
+        request.form.get('name')
+        or request.form.get('new_name')
+        or (request.json.get('name') if request.is_json else None)
+        or (request.json.get('new_name') if request.is_json else None)
+    )
     
     if not new_name:
         return jsonify({
@@ -76,10 +120,7 @@ def update_tag(tag_id):
     
     success, message = strategy_service.update_tag(tag_id, new_name)
     
-    return jsonify({
-        'success': success,
-        'message': message
-    })
+    return jsonify({'success': success, 'message': message})
 
 
 @api_bp.route('/tag/<int:tag_id>/delete', methods=['POST'])
@@ -117,20 +158,20 @@ def get_strategy_score():
         end_date=end_date
     )
     
-    # 为向后兼容，添加旧的评分字段
+    # 为向后兼容，添加旧的评分字段（修正盈亏比与频率评分）
     if 'stats' in score:
         stats = score['stats']
-        # 计算旧评分字段
-        score['win_rate_score'] = min(stats['win_rate'] / 10, 10)  # 胜率百分比除以10
-        
-        # 盈亏比评分：基于总收益率的简化计算
-        if stats['total_return_rate'] <= 0:
+        score['win_rate_score'] = min(stats['win_rate'] / 10, 10)
+        plr = stats.get('avg_profit_loss_ratio', 0) or 0
+        if plr == 0:
             score['profit_loss_ratio_score'] = 0
+        elif plr == 9999.0:
+            score['profit_loss_ratio_score'] = 10
         else:
-            score['profit_loss_ratio_score'] = min(stats['total_return_rate'] / 10, 10)
-        
-        # 频率评分：基于平均持仓天数
-        if stats['avg_holding_days'] <= 1:
+            score['profit_loss_ratio_score'] = min(plr, 10)
+        if stats['total_trades'] == 0:
+            score['frequency_score'] = 0
+        elif stats['avg_holding_days'] <= 1:
             score['frequency_score'] = 8
         elif stats['avg_holding_days'] <= 7:
             score['frequency_score'] = 7
@@ -138,8 +179,6 @@ def get_strategy_score():
             score['frequency_score'] = 6
         else:
             score['frequency_score'] = max(0, 6 - (stats['avg_holding_days'] - 30) / 30)
-        
-        # 总分
         score['total_score'] = score['win_rate_score'] + score['profit_loss_ratio_score'] + score['frequency_score']
     
     return jsonify({

@@ -1,4 +1,4 @@
-/* 趋势交易跟踪系统样式文件 */
+/* 多策略系统分析 样式文件 */
 
 /* 全局样式 */
 body {
@@ -42,6 +42,24 @@ body {
 .badge {
     font-size: 0.8rem;
     font-weight: 500;
+}
+
+/* 标签管理样式优化：统一预定义与自定义标签高度 */
+.tag-item { line-height: 1; }
+.tag-item .badge {
+    display: inline-flex;
+    align-items: center;
+    height: 28px;            /* 固定高度保持一致 */
+    padding: 0 0.5rem;       /* 水平内边距 */
+    border-radius: 9999px;   /* 胶囊外观 */
+    line-height: 1;          /* 取消继承的行高差异 */
+}
+.tag-item .badge .tag-name,
+.tag-item .badge small { line-height: 1; }
+.tag-item .btn.btn-sm {
+    padding: 0 0.25rem;      /* 更紧凑的按钮以不撑高徽章 */
+    line-height: 1;
+    height: 20px;
 }
 
 /* 按钮样式 */

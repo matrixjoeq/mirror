@@ -1,4 +1,4 @@
-// 趋势交易跟踪系统 JavaScript
+// 多策略系统分析 JavaScript
 
 // 全局配置
 const APP_CONFIG = {
@@ -509,7 +509,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    console.log('趋势交易跟踪系统已加载完成');
+    console.log('多策略系统分析已加载完成');
 });
 
 // 导出到全局

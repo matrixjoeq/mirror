@@ -22,26 +22,31 @@ def trades():
         strategy_service = StrategyService(current_app.db_service)
         
         # 获取筛选参数
-        status = request.args.get('status')
-        strategy = request.args.get('strategy')
+        status = request.args.get('status', 'all')
+        strategy_arg = request.args.get('strategy', 'all')
+
+        # 归一化筛选值供服务层使用（'all' 等价于不筛选）
+        status_filter = None if not status or status == 'all' else status
+        strategy_filter = None
+        if strategy_arg and strategy_arg != 'all':
+            try:
+                strategy_filter = int(strategy_arg)
+            except ValueError:
+                strategy_filter = strategy_arg
         
         # 获取交易数据
-        all_trades = trading_service.get_all_trades(status=status, strategy=strategy)
+        all_trades = trading_service.get_all_trades(status=status_filter, strategy=strategy_filter)
         strategies_list = strategy_service.get_all_strategies()
-        
-        # 转换策略为字典格式 (模板期望的格式)
-        strategies = {str(s['id']): s['name'] for s in strategies_list}
-        strategies['all'] = '所有策略'
         
         return render_template('trades.html', 
                              trades=all_trades, 
-                             strategies=strategies,
+                             strategies=strategies_list,
                              current_status=status,
-                             current_strategy=strategy)
+                             current_strategy=str(strategy_arg))
         
     except Exception as e:
         current_app.logger.error(f"交易列表加载失败: {str(e)}")
-        return render_template('trades.html', trades=[], strategies={'all': '所有策略'})
+        return render_template('trades.html', trades=[], strategies=[])
 
 
 @trading_bp.route('/add_buy', methods=['GET', 'POST'])
@@ -51,10 +56,28 @@ def add_buy():
         try:
             strategy_service = StrategyService(current_app.db_service)
             strategies = strategy_service.get_all_strategies()
-            return render_template('add_buy.html', strategies_data=strategies)
+            
+            # 获取URL参数中的策略ID
+            default_strategy_id = request.args.get('strategy')
+            default_strategy = None
+            
+            # 如果URL中有策略参数，验证策略是否存在
+            if default_strategy_id:
+                try:
+                    strategy_id = int(default_strategy_id)
+                    # 验证策略是否存在
+                    strategy_obj = strategy_service.get_strategy_by_id(strategy_id)
+                    if strategy_obj:
+                        default_strategy = strategy_id
+                except ValueError:
+                    pass  # 忽略无效的策略ID
+            
+            return render_template('add_buy.html', 
+                                 strategies_data=strategies,
+                                 default_strategy=default_strategy)
         except Exception as e:
             current_app.logger.error(f"买入页面加载失败: {str(e)}")
-            return render_template('add_buy.html', strategies_data=[])
+            return render_template('add_buy.html', strategies_data=[], default_strategy=None)
     
     elif request.method == 'POST':
         try:
@@ -93,18 +116,18 @@ def add_buy():
             if success:
                 return redirect(url_for('trading.trades'))
             else:
-                strategy_service = StrategyService()
+                strategy_service = StrategyService(current_app.db_service)
                 strategies = strategy_service.get_all_strategies()
                 return render_template('add_buy.html', 
-                                     strategies=strategies, 
+                                     strategies_data=strategies, 
                                      error=result)
                 
         except Exception as e:
             current_app.logger.error(f"添加买入交易失败: {str(e)}")
-            strategy_service = StrategyService()
+            strategy_service = StrategyService(current_app.db_service)
             strategies = strategy_service.get_all_strategies()
             return render_template('add_buy.html', 
-                                 strategies=strategies, 
+                                 strategies_data=strategies, 
                                  error=f"添加买入交易失败: {str(e)}")
 
 
@@ -193,21 +216,26 @@ def edit_trade(trade_id):
     """编辑交易"""
     # 这个功能比较复杂，先创建基础结构
     try:
-        trading_service = TradingService()
+        trading_service = TradingService(current_app.db_service)
         
         trade = trading_service.get_trade_by_id(trade_id)
         if not trade:
             return redirect(url_for('trading.trades'))
         
         if request.method == 'GET':
-            strategy_service = StrategyService()
+            strategy_service = StrategyService(current_app.db_service)
             strategies = strategy_service.get_all_strategies()
             details = trading_service.get_trade_details(trade_id)
-            
-            return render_template('edit_trade.html',
-                                 trade=trade,
-                                 details=details,
-                                 strategies=strategies)
+
+            # 为模板提供便于显示的策略字典与列表
+            strategies_dict = {s['id']: s['name'] for s in strategies}
+            return render_template(
+                'edit_trade.html',
+                trade=trade,
+                details=details,
+                strategies_data=strategies,
+                strategies_dict=strategies_dict,
+            )
         
         # POST 方法的实现需要更复杂的逻辑，暂时返回基础页面
         return redirect(url_for('trading.trade_details', trade_id=trade_id))
@@ -228,7 +256,7 @@ def generate_confirmation_code_endpoint():
 @handle_errors
 def delete_trade(trade_id):
     """软删除交易"""
-    trading_service = TradingService()
+    trading_service = TradingService(current_app.db_service)
     
     confirmation_code = request.form.get('confirmation_code')
     delete_reason = request.form.get('delete_reason', '')
@@ -254,21 +282,27 @@ def delete_trade(trade_id):
 def deleted_trades():
     """已删除的交易列表"""
     try:
-        trading_service = TradingService()
-        deleted_trades_list = trading_service.get_deleted_trades()
+        trading_service = TradingService(current_app.db_service)
+        strategy_service = StrategyService(current_app.db_service)
         
-        return render_template('deleted_trades.html', trades=deleted_trades_list)
+        deleted_trades_list = trading_service.get_deleted_trades()
+        strategies = strategy_service.get_all_strategies()
+        
+        # 创建策略ID到名称的映射
+        strategy_map = {strategy['id']: strategy['name'] for strategy in strategies}
+        
+        return render_template('deleted_trades.html', trades=deleted_trades_list, strategies=strategy_map)
         
     except Exception as e:
         current_app.logger.error(f"已删除交易列表加载失败: {str(e)}")
-        return render_template('deleted_trades.html', trades=[])
+        return render_template('deleted_trades.html', trades=[], strategies={})
 
 
 @trading_bp.route('/restore_trade/<int:trade_id>', methods=['POST'])
 @handle_errors
 def restore_trade(trade_id):
     """恢复已删除的交易"""
-    trading_service = TradingService()
+    trading_service = TradingService(current_app.db_service)
     
     confirmation_code = request.form.get('confirmation_code')
     operator_note = request.form.get('operator_note', '')
@@ -292,7 +326,7 @@ def restore_trade(trade_id):
 @handle_errors
 def permanently_delete_trade(trade_id):
     """永久删除交易"""
-    trading_service = TradingService()
+    trading_service = TradingService(current_app.db_service)
     
     confirmation_code = request.form.get('confirmation_code')
     confirmation_text = request.form.get('confirmation_text')
@@ -314,3 +348,120 @@ def permanently_delete_trade(trade_id):
         return jsonify({'success': True, 'message': '交易已永久删除'})
     else:
         return jsonify({'success': False, 'message': '删除失败'}), 500
+
+
+@trading_bp.route('/batch_delete_trades', methods=['POST'])
+@handle_errors
+def batch_delete_trades():
+    """批量软删除交易"""
+    trading_service = TradingService(current_app.db_service)
+
+    trade_ids = request.form.getlist('trade_ids[]')
+    confirmation_code = request.form.get('confirmation_code')
+    delete_reason = request.form.get('delete_reason', '')
+    operator_note = request.form.get('operator_note', '')
+
+    if not trade_ids:
+        return jsonify({'success': False, 'message': '未选择任何交易'}), 400
+    if not confirmation_code:
+        return jsonify({'success': False, 'message': '请提供确认码'}), 400
+
+    success_count = 0
+    for tid in trade_ids:
+        try:
+            trade_id = int(tid)
+        except Exception:
+            continue
+        ok = trading_service.soft_delete_trade(
+            trade_id=trade_id,
+            confirmation_code=confirmation_code,
+            delete_reason=delete_reason,
+            operator_note=operator_note,
+        )
+        if ok:
+            success_count += 1
+
+    if success_count == len(trade_ids):
+        return jsonify({'success': True, 'message': f'成功删除 {success_count} 笔交易'})
+    elif success_count == 0:
+        return jsonify({'success': False, 'message': '删除失败，请重试'}), 500
+    else:
+        return jsonify({'success': True, 'message': f'部分成功：已删除 {success_count}/{len(trade_ids)} 笔交易'})
+
+
+@trading_bp.route('/batch_restore_trades', methods=['POST'])
+@handle_errors
+def batch_restore_trades():
+    """批量恢复交易"""
+    trading_service = TradingService(current_app.db_service)
+
+    trade_ids = request.form.getlist('trade_ids[]')
+    confirmation_code = request.form.get('confirmation_code')
+    operator_note = request.form.get('operator_note', '')
+
+    if not trade_ids:
+        return jsonify({'success': False, 'message': '未选择任何交易'}), 400
+    if not confirmation_code:
+        return jsonify({'success': False, 'message': '请提供确认码'}), 400
+
+    success_count = 0
+    for tid in trade_ids:
+        try:
+            trade_id = int(tid)
+        except Exception:
+            continue
+        ok = trading_service.restore_trade(
+            trade_id=trade_id,
+            confirmation_code=confirmation_code,
+            operator_note=operator_note,
+        )
+        if ok:
+            success_count += 1
+
+    if success_count == len(trade_ids):
+        return jsonify({'success': True, 'message': f'成功恢复 {success_count} 笔交易'})
+    elif success_count == 0:
+        return jsonify({'success': False, 'message': '恢复失败，请重试'}), 500
+    else:
+        return jsonify({'success': True, 'message': f'部分成功：已恢复 {success_count}/{len(trade_ids)} 笔交易'})
+
+
+@trading_bp.route('/batch_permanently_delete_trades', methods=['POST'])
+@handle_errors
+def batch_permanently_delete_trades():
+    """批量永久删除交易"""
+    trading_service = TradingService(current_app.db_service)
+
+    trade_ids = request.form.getlist('trade_ids[]')
+    confirmation_code = request.form.get('confirmation_code')
+    confirmation_text = request.form.get('confirmation_text')
+    delete_reason = request.form.get('delete_reason', '')
+    operator_note = request.form.get('operator_note', '')
+
+    if not trade_ids:
+        return jsonify({'success': False, 'message': '未选择任何交易'}), 400
+    if not confirmation_code or not confirmation_text:
+        return jsonify({'success': False, 'message': '请提供确认码和确认文本'}), 400
+
+    success_count = 0
+    for tid in trade_ids:
+        try:
+            trade_id = int(tid)
+        except Exception:
+            continue
+        ok = trading_service.permanently_delete_trade(
+            trade_id=trade_id,
+            confirmation_code=confirmation_code,
+            confirmation_text=confirmation_text,
+            delete_reason=delete_reason,
+            operator_note=operator_note,
+        )
+        if ok:
+            success_count += 1
+
+    if success_count == len(trade_ids):
+        return jsonify({'success': True, 'message': f'成功彻底删除 {success_count} 笔交易'})
+    elif success_count == 0:
+        return jsonify({'success': False, 'message': '彻底删除失败，请重试'}), 500
+    else:
+        return jsonify({'success': True, 'message': f'部分成功：已彻底删除 {success_count}/{len(trade_ids)} 笔交易'})

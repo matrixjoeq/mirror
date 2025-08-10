@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}交易记录 - 趋势交易跟踪系统{% endblock %}
+{% block title %}交易记录 - 多策略系统分析{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -23,8 +23,8 @@
                                 <i class="bi bi-plus-circle"></i> 新建买入
                             </button>
                             <ul class="dropdown-menu">
-                                {% for strategy_code, strategy_name in strategies.items() %}
-                                <li><a class="dropdown-item" href="{{ url_for('trading.add_buy') }}?strategy={{ strategy_code }}">{{ strategy_name }}</a></li>
+                                {% for s in strategies %}
+                                <li><a class="dropdown-item" href="{{ url_for('trading.add_buy') }}?strategy={{ s.id }}">{{ s.name }}</a></li>
                                 {% endfor %}
                             </ul>
                         </div>
@@ -57,10 +57,10 @@
                                class="btn btn-outline-secondary {{ 'active' if current_strategy == 'all' else '' }}">
                                 全部策略
                             </a>
-                            {% for strategy_code, strategy_name in strategies.items() %}
-                            <a href="{{ url_for('trading.trades') }}?strategy={{ strategy_code }}{% if current_status != 'all' %}&status={{ current_status }}{% endif %}"
-                               class="btn btn-outline-secondary {{ 'active' if current_strategy == strategy_code else '' }}">
-                                {{ strategy_name }}
+                            {% for s in strategies %}
+                            <a href="{{ url_for('trading.trades') }}?strategy={{ s.id }}{% if current_status != 'all' %}&status={{ current_status }}{% endif %}"
+                               class="btn btn-outline-secondary {{ 'active' if current_strategy == (s.id|string) else '' }}">
+                                {{ s.name }}
                             </a>
                             {% endfor %}
                         </div>
@@ -99,8 +99,8 @@
                                     </td>
                                     <td>{{ trade.id }}</td>
                                     <td>
-                                        <span class="badge {{ 'bg-primary' if trade.strategy == 'trend' else ('bg-success' if trade.strategy == 'rotation' else 'bg-warning text-dark') }}">
-                                            {{ strategies[trade.strategy] }}
+                                            <span class="badge bg-primary">
+                                                {{ trade.strategy_name or '-' }}
                                         </span>
                                     </td>
                                     <td>
@@ -181,8 +181,8 @@
                                             <i class="bi bi-plus-circle"></i> 创建第一笔交易
                                         </button>
                                         <ul class="dropdown-menu">
-                                            {% for strategy_code, strategy_name in strategies.items() %}
-                                            <li><a class="dropdown-item" href="{{ url_for('trading.add_buy') }}?strategy={{ strategy_code }}">{{ strategy_name }}</a></li>
+                                            {% for s in strategies %}
+                                            <li><a class="dropdown-item" href="{{ url_for('trading.add_buy') }}?strategy={{ s.id }}">{{ s.name }}</a></li>
                                             {% endfor %}
                                         </ul>
                                     </div>
@@ -343,6 +343,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectAllCheckbox = document.getElementById('selectAll');
     const tradeCheckboxes = document.querySelectorAll('.trade-checkbox');
     const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+
+    // 为避免浏览器在刷新后保留勾选状态，初始化时统一清空选择状态
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+    }
+    tradeCheckboxes.forEach(cb => { cb.checked = false; });
 
     if (selectAllCheckbox) {
         selectAllCheckbox.addEventListener('change', function() {

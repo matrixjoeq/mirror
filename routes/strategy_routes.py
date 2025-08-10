@@ -19,17 +19,28 @@ def strategies():
         strategy_service = StrategyService(current_app.db_service)
         trading_service = TradingService(current_app.db_service)
         strategies_list = strategy_service.get_all_strategies()
-        
+
         # 为每个策略添加交易数量
         for strategy in strategies_list:
             trades = trading_service.get_all_trades(strategy=strategy['name'])
             strategy['trade_count'] = len([t for t in trades if t['status'] != 'deleted'])
-        
-        return render_template('strategies.html', strategies=strategies_list)
+
+        # 获取标签并计算使用次数
+        tags = strategy_service.get_all_tags()
+        usage_rows = strategy_service.db.execute_query(
+            'SELECT tag_id, COUNT(*) AS usage_count FROM strategy_tag_relations GROUP BY tag_id'
+        )
+        tag_id_to_usage = {row['tag_id']: row['usage_count'] for row in usage_rows}
+        for tag in tags:
+            tag['usage_count'] = int(tag_id_to_usage.get(tag['id'], 0))
+        # 内置标签排在自定义标签之前，然后按名称排序
+        tags.sort(key=lambda t: (0 if t.get('is_predefined') else 1, t.get('name', '')))
+
+        return render_template('strategies.html', strategies=strategies_list, tags=tags)
         
     except Exception as e:
         current_app.logger.error(f"策略列表加载失败: {str(e)}")
-        return render_template('strategies.html', strategies=[])
+        return render_template('strategies.html', strategies=[], tags=[])
 
 
 @strategy_bp.route('/strategy/create', methods=['GET', 'POST'])
@@ -89,13 +100,18 @@ def create_strategy():
 def edit_strategy(strategy_id):
     """编辑策略"""
     try:
-        strategy_service = StrategyService()
+        strategy_service = StrategyService(current_app.db_service)
+        trading_service = TradingService(current_app.db_service)
         
         if request.method == 'GET':
             strategy = strategy_service.get_strategy_by_id(strategy_id)
             if not strategy:
                 return redirect(url_for('strategy.strategies'))
             
+            # 附带统计字段
+            trades = trading_service.get_all_trades(strategy=strategy['name'])
+            strategy['trade_count'] = len([t for t in trades if t['status'] != 'deleted'])
+
             tags_data = strategy_service.get_all_tags()
             return render_template('edit_strategy.html', 
                                  strategy=strategy, 
@@ -105,7 +121,8 @@ def edit_strategy(strategy_id):
             # 获取表单数据
             name = request.form.get('name', '').strip()
             description = request.form.get('description', '').strip()
-            tag_names = request.form.getlist('tag_names')
+            # 前端表单字段名称为 'tags'
+            tag_names = request.form.getlist('tags')
             
             # 更新策略
             success, message = strategy_service.update_strategy(
@@ -115,15 +132,8 @@ def edit_strategy(strategy_id):
                 tag_names=tag_names
             )
             
-            if success:
-                return redirect(url_for('strategy.strategies'))
-            else:
-                strategy = strategy_service.get_strategy_by_id(strategy_id)
-                tags_data = strategy_service.get_all_tags()
-                return render_template('edit_strategy.html',
-                                     strategy=strategy,
-                                     tags=tags_data,
-                                     error=message)
+            # 返回JSON以兼容前端fetch提交流程
+            return jsonify({'success': success, 'message': message})
                 
     except Exception as e:
         current_app.logger.error(f"编辑策略失败: {str(e)}")
@@ -134,7 +144,7 @@ def edit_strategy(strategy_id):
 @handle_errors
 def delete_strategy(strategy_id):
     """删除策略"""
-    strategy_service = StrategyService()
+    strategy_service = StrategyService(current_app.db_service)
     
     success, message = strategy_service.delete_strategy(strategy_id)
     

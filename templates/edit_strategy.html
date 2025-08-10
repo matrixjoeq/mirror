@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}编辑策略 - 多策略交易跟踪系统{% endblock %}
+{% block title %}编辑策略 - 多策略系统分析{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -11,7 +11,7 @@
                     <h4 class="card-title mb-0">
                         <i class="bi bi-pencil"></i> 编辑策略：{{ strategy.name }}
                     </h4>
-                    <a href="{{ url_for('strategies') }}" class="btn btn-outline-secondary">
+                    <a href="{{ url_for('strategy.strategies') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> 返回策略列表
                     </a>
                 </div>
@@ -22,7 +22,7 @@
                     <strong>注意：</strong>修改策略信息可能影响历史交易记录的分类显示，请谨慎操作。
                 </div>
 
-                <form id="editStrategyForm">
+                <form id="editStrategyForm" method="post">
                     <div class="mb-3">
                         <label for="strategyName" class="form-label">
                             <i class="bi bi-type"></i> 策略名称 <span class="text-danger">*</span>
@@ -135,7 +135,7 @@
                     </div>
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <a href="{{ url_for('strategies') }}" class="btn btn-outline-secondary me-md-2">
+                        <a href="{{ url_for('strategy.strategies') }}" class="btn btn-outline-secondary me-md-2">
                             <i class="bi bi-x-circle"></i> 取消
                         </a>
                         <button type="submit" class="btn btn-primary">

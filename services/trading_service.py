@@ -342,6 +342,130 @@ class TradingService:
         
         modifications = self.db.execute_query(query, (trade_id,))
         return [dict(mod) for mod in modifications]
+
+    def update_trade_record(self, trade_id: int, detail_updates: List[Dict[str, Any]]) -> Tuple[bool, str]:
+        """根据提供的明细更新列表，更新交易明细并重算汇总与盈亏。
+
+        detail_updates: 每项包含字段：
+          - detail_id: 明细ID（必填）
+          - price, quantity, transaction_fee, buy_reason, sell_reason: 任意可选更新字段
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # 校验交易存在
+                cursor.execute("SELECT * FROM trades WHERE id = ?", (trade_id,))
+                trade_row = cursor.fetchone()
+                if not trade_row:
+                    return False, f"交易ID {trade_id} 不存在"
+
+                # 逐条更新明细
+                for upd in detail_updates:
+                    detail_id = upd.get('detail_id')
+                    if not detail_id:
+                        return False, "detail_id 缺失"
+
+                    cursor.execute("SELECT * FROM trade_details WHERE id = ? AND trade_id = ?", (detail_id, trade_id))
+                    detail = cursor.fetchone()
+                    if not detail:
+                        return False, f"明细ID {detail_id} 不存在于交易 {trade_id}"
+
+                    # 计算新的字段值（若未给出则使用原值）
+                    price = Decimal(str(upd.get('price', detail['price'])))
+                    quantity = int(upd.get('quantity', detail['quantity']))
+                    transaction_fee = Decimal(str(upd.get('transaction_fee', detail['transaction_fee'])))
+                    buy_reason = upd.get('buy_reason', detail['buy_reason'])
+                    sell_reason = upd.get('sell_reason', detail['sell_reason'])
+
+                    if price <= 0 or quantity <= 0:
+                        return False, "价格和数量必须大于0"
+
+                    # 重新计算 amount 与（若为卖出）临时 profit_loss，最终会统一重算
+                    if detail['transaction_type'] == 'buy':
+                        amount = price * quantity + transaction_fee
+                        cursor.execute(
+                            '''UPDATE trade_details SET price = ?, quantity = ?, amount = ?, transaction_date = transaction_date,
+                               transaction_fee = ?, buy_reason = ? WHERE id = ?''',
+                            (float(price), quantity, float(amount), float(transaction_fee), buy_reason, detail_id)
+                        )
+                    else:
+                        amount = price * quantity - transaction_fee
+                        cursor.execute(
+                            '''UPDATE trade_details SET price = ?, quantity = ?, amount = ?, transaction_date = transaction_date,
+                               transaction_fee = ?, sell_reason = ? WHERE id = ?''',
+                            (float(price), quantity, float(amount), float(transaction_fee), sell_reason, detail_id)
+                        )
+
+                # 读取该交易的全部明细以便重算
+                cursor.execute("SELECT * FROM trade_details WHERE trade_id = ? AND is_deleted = 0 ORDER BY transaction_date, created_at, id", (trade_id,))
+                all_details = cursor.fetchall()
+
+                # 汇总买入与卖出
+                total_buy_amount = Decimal('0')
+                total_buy_quantity = 0
+                total_sell_amount = Decimal('0')
+                total_sell_quantity = 0
+
+                for d in all_details:
+                    if d['transaction_type'] == 'buy':
+                        total_buy_amount += Decimal(str(d['amount']))
+                        total_buy_quantity += int(d['quantity'])
+                    else:
+                        total_sell_amount += Decimal(str(d['amount']))
+                        total_sell_quantity += int(d['quantity'])
+
+                remaining_quantity = total_buy_quantity - total_sell_quantity
+
+                # 以加权平均成本法重算每笔卖出明细盈亏
+                avg_buy_price = (total_buy_amount / Decimal(str(total_buy_quantity))) if total_buy_quantity > 0 else Decimal('0')
+                total_profit_loss = Decimal('0')
+                for d in all_details:
+                    if d['transaction_type'] == 'sell':
+                        sell_amount = Decimal(str(d['amount']))
+                        buy_cost = avg_buy_price * Decimal(str(d['quantity']))
+                        profit_loss = sell_amount - buy_cost
+                        profit_loss_pct = (profit_loss / buy_cost * 100) if buy_cost > 0 else Decimal('0')
+                        total_profit_loss += profit_loss
+                        cursor.execute(
+                            '''UPDATE trade_details SET profit_loss = ?, profit_loss_pct = ? WHERE id = ?''',
+                            (float(profit_loss), float(profit_loss_pct), d['id'])
+                        )
+
+                total_profit_loss_pct = (total_profit_loss / total_buy_amount * 100) if total_buy_amount > 0 else Decimal('0')
+
+                # 关闭状态与日期/持仓天数
+                status = 'closed' if remaining_quantity == 0 and total_sell_quantity > 0 else 'open'
+                close_date = None
+                holding_days = trade_row['holding_days']
+                if status == 'closed':
+                    # 取最后一笔卖出的日期作为 close_date
+                    cursor.execute("SELECT MAX(transaction_date) AS cd FROM trade_details WHERE trade_id = ? AND transaction_type = 'sell' AND is_deleted = 0", (trade_id,))
+                    row = cursor.fetchone()
+                    close_date = row['cd'] if row and row['cd'] else None
+                    if close_date:
+                        open_date = datetime.strptime(trade_row['open_date'], '%Y-%m-%d').date()
+                        close_date_obj = datetime.strptime(close_date, '%Y-%m-%d').date()
+                        holding_days = (close_date_obj - open_date).days
+
+                # 更新主交易表
+                cursor.execute(
+                    '''UPDATE trades SET total_buy_amount = ?, total_buy_quantity = ?,
+                       total_sell_amount = ?, total_sell_quantity = ?, remaining_quantity = ?,
+                       total_profit_loss = ?, total_profit_loss_pct = ?, status = ?, close_date = ?, holding_days = ?,
+                       updated_at = CURRENT_TIMESTAMP WHERE id = ?''',
+                    (
+                        float(total_buy_amount), total_buy_quantity,
+                        float(total_sell_amount), total_sell_quantity, remaining_quantity,
+                        float(total_profit_loss), float(total_profit_loss_pct), status, close_date, holding_days, trade_id
+                    )
+                )
+
+                conn.commit()
+                return True, "交易明细更新成功"
+
+        except Exception as e:
+            return False, f"更新交易记录失败: {str(e)}"
     
     def _resolve_strategy(self, strategy) -> Optional[int]:
         """解析策略参数，返回策略ID"""

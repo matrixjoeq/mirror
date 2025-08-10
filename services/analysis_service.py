@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from .database_service import DatabaseService
 from .strategy_service import StrategyService
+from utils.helpers import get_period_date_range
 
 
 class AnalysisService:
@@ -234,19 +235,22 @@ class AnalysisService:
                     'total_return_rate': 0,
                     'avg_return_per_trade': 0,
                     'avg_holding_days': 0,
-                    'total_fees': 0
+                    'total_fees': 0,
+                    'avg_profit_loss_ratio': 0.0
                 },
                 'details': []
             }
         
         # 统计变量
-        total_trades = 0
+        total_trades = 0  # 仅统计已平仓交易数
         winning_trades = 0
         losing_trades = 0
         total_investment = Decimal('0')
         total_return = Decimal('0')
         total_holding_days = 0
         total_fees = Decimal('0')
+        sum_profit = Decimal('0')
+        sum_loss_abs = Decimal('0')
         
         details = []
         
@@ -272,8 +276,10 @@ class AnalysisService:
                 
                 if trade['total_profit_loss'] > 0:
                     winning_trades += 1
+                    sum_profit += Decimal(str(trade['total_profit_loss']))
                 elif trade['total_profit_loss'] < 0:
                     losing_trades += 1
+                    sum_loss_abs += abs(Decimal(str(trade['total_profit_loss'])))
             
             details.append(trade_dict)
         
@@ -282,6 +288,15 @@ class AnalysisService:
         total_return_rate = (total_return / total_investment * 100) if total_investment > 0 else 0
         avg_return_per_trade = total_return / total_trades if total_trades > 0 else 0
         avg_holding_days = total_holding_days / total_trades if total_trades > 0 else 0
+        # 盈亏比（Profit Factor）：总盈利/总亏损绝对值
+        if total_trades > 0:
+            if sum_loss_abs > 0:
+                profit_loss_ratio = float((sum_profit / sum_loss_abs).quantize(Decimal('0.01')))
+            else:
+                # 没有亏损但有盈利时，设置为一个较大值用于展示，同时在打分处会被截断
+                profit_loss_ratio = float('inf') if sum_profit > 0 else 0.0
+        else:
+            profit_loss_ratio = 0.0
         
         return {
             'stats': {
@@ -294,7 +309,8 @@ class AnalysisService:
                 'total_return_rate': float(total_return_rate),
                 'avg_return_per_trade': float(avg_return_per_trade),
                 'avg_holding_days': float(avg_holding_days),
-                'total_fees': float(total_fees)
+                'total_fees': float(total_fees),
+                'avg_profit_loss_ratio': (profit_loss_ratio if profit_loss_ratio != float('inf') else 9999.0)
             },
             'details': details
         }
@@ -309,41 +325,4 @@ class AnalysisService:
     
     def _get_period_date_range(self, period: str, period_type: str = 'year') -> tuple:
         """获取时间周期的日期范围"""
-        if period_type == 'year':
-            start_date = f"{period}-01-01"
-            end_date = f"{period}-12-31"
-        elif period_type == 'quarter':
-            # 格式: 2024-Q1
-            year, quarter = period.split('-Q')
-            quarter = int(quarter)
-            
-            if quarter == 1:
-                start_date = f"{year}-01-01"
-                end_date = f"{year}-03-31"
-            elif quarter == 2:
-                start_date = f"{year}-04-01"
-                end_date = f"{year}-06-30"
-            elif quarter == 3:
-                start_date = f"{year}-07-01"
-                end_date = f"{year}-09-30"
-            else:  # quarter == 4
-                start_date = f"{year}-10-01"
-                end_date = f"{year}-12-31"
-        elif period_type == 'month':
-            # 格式: 2024-01
-            year, month = period.split('-')
-            start_date = f"{year}-{month}-01"
-            
-            # 计算月末日期
-            if month in ['01', '03', '05', '07', '08', '10', '12']:
-                end_date = f"{year}-{month}-31"
-            elif month in ['04', '06', '09', '11']:
-                end_date = f"{year}-{month}-30"
-            else:  # 2月
-                # 简单处理，不考虑闰年
-                end_date = f"{year}-{month}-28"
-        else:
-            start_date = '1900-01-01'
-            end_date = '2099-12-31'
-        
-        return start_date, end_date
+        return get_period_date_range(period, period_type)

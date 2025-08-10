@@ -17,7 +17,7 @@
                     {% else %}
                     {{ period }} - 策略比较
                     {% endif %}
-                    <a href="{{ url_for('time_comparison', period_type=period_type) }}" class="btn btn-outline-secondary btn-sm float-end">
+                    <a href="{{ url_for('analysis.time_comparison', period_type=period_type) }}" class="btn btn-outline-secondary btn-sm float-end">
                         <i class="bi bi-arrow-left"></i> 返回时间段列表
                     </a>
                 </h5>
@@ -36,9 +36,9 @@
                             {% endif %}
                             期间的表现差异，识别最适合该时期的交易策略。
                         </p>
-                        <div class="small text-muted">
-                            时间范围: {{ strategy_scores[0].start_date }} 至 {{ strategy_scores[0].end_date }}
-                        </div>
+                            <div class="small text-muted">
+                                时间范围: {{ start_date }} 至 {{ end_date }}
+                            </div>
                         
                         <!-- 时间段总体统计 -->
                         {% if period_summary %}
@@ -47,24 +47,24 @@
                                 <h6 class="text-primary mb-3">📊 期间总体表现</h6>
                                 <div class="row text-center">
                                     <div class="col-6 col-md-3 mb-2">
-                                        <div class="h5 text-primary">{{ period_summary.total_trades }}</div>
+                                    <div class="h5 text-primary">{{ period_summary.stats.total_trades }}</div>
                                         <div class="small text-muted">总交易数</div>
                                     </div>
                                     <div class="col-6 col-md-3 mb-2">
-                                        <div class="h5 {% if period_summary.win_rate >= 60 %}text-success{% elif period_summary.win_rate >= 40 %}text-warning{% else %}text-danger{% endif %}">
-                                            {{ period_summary.win_rate }}%
+                                        <div class="h5 {% if period_summary.stats.win_rate >= 60 %}text-success{% elif period_summary.stats.win_rate >= 40 %}text-warning{% else %}text-danger{% endif %}">
+                                            {{ period_summary.stats.win_rate }}%
                                         </div>
                                         <div class="small text-muted">胜率</div>
                                     </div>
                                     <div class="col-6 col-md-3 mb-2">
-                                        <div class="h5 {% if period_summary.total_profit > 0 %}text-success{% else %}text-danger{% endif %}">
-                                            {{ "%.2f"|format(period_summary.total_profit) }}
+                                        <div class="h5 {% if period_summary.stats.total_return > 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {{ "%.2f"|format(period_summary.stats.total_return) }}
                                         </div>
                                         <div class="small text-muted">总盈亏</div>
                                     </div>
                                     <div class="col-6 col-md-3 mb-2">
-                                        <div class="h5 text-info">{{ period_summary.total_symbols }}</div>
-                                        <div class="small text-muted">涉及标的</div>
+                                        <div class="h5 text-info">{{ strategy_scores|length }}</div>
+                                        <div class="small text-muted">涉及策略</div>
                                     </div>
                                 </div>
                                 

@@ -178,6 +178,28 @@ class StrategyService:
             
         except Exception as e:
             return False, f"删除策略失败: {str(e)}"
+
+    def disable_strategy_by_name(self, name: str) -> Tuple[bool, str]:
+        """通过名称禁用策略（设为非活跃），用于清理误入的测试策略。"""
+        if not name:
+            return False, "策略名称不能为空"
+        try:
+            existing = self.db.execute_query(
+                "SELECT id FROM strategies WHERE name = ? AND is_active = 1",
+                (name,), fetch_all=True
+            )
+            if not existing:
+                return True, "无需处理"
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE strategies SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE name = ?",
+                    (name,)
+                )
+                conn.commit()
+            return True, f"策略 '{name}' 已禁用"
+        except Exception as e:
+            return False, f"禁用策略失败: {str(e)}"
     
     def get_all_tags(self) -> List[Dict[str, Any]]:
         """获取所有标签"""

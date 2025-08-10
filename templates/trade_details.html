@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}交易详情 - 趋势交易跟踪系统{% endblock %}
+{% block title %}交易详情 - 多策略系统分析{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -162,6 +162,7 @@
                                 <th>交易理由</th>
                                 <th>盈亏金额</th>
                                 <th>盈亏比例</th>
+                                <th>操作</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -226,11 +227,32 @@
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            {% if detail.transaction_type == 'buy' %}
+                                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modifyDetailModal" 
+                                                        data-detail-id="{{ detail.id }}" data-detail-type="buy">
+                                                    <i class="bi bi-pencil-square"></i> 修改
+                                                </button>
+                                                {% if trade.status == 'open' and trade.remaining_quantity > 0 %}
+                                                <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#quickSellModal" 
+                                                        data-detail-id="{{ detail.id }}" data-trade-id="{{ trade.id }}">
+                                                    <i class="bi bi-dash-circle"></i> 卖出
+                                                </button>
+                                                {% endif %}
+                                            {% else %}
+                                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modifyDetailModal" 
+                                                        data-detail-id="{{ detail.id }}" data-detail-type="sell">
+                                                    <i class="bi bi-pencil-square"></i> 修改
+                                                </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="8" class="text-center text-muted">
+                                    <td colspan="11" class="text-center text-muted">
                                         暂无交易明细
                                     </td>
                                 </tr>
@@ -354,6 +376,175 @@
         {% endif %}
     </div>
 </div>
+
+<!-- 修改交易明细模态框 -->
+<div class="modal fade" id="modifyDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil-square"></i> 修改交易明细
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="modifyDetailForm">
+                    <input type="hidden" id="modifyDetailId" name="detail_id">
+                    
+                    <!-- 共享信息 -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="modifySymbolCode" class="form-label">标的代码</label>
+                            <input type="text" class="form-control" id="modifySymbolCode" name="symbol_code" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="modifySymbolName" class="form-label">标的名称</label>
+                            <input type="text" class="form-control" id="modifySymbolName" name="symbol_name" required>
+                        </div>
+                    </div>
+                    
+                    <!-- 交易明细信息 -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="modifyPrice" class="form-label">交易价格</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" class="form-control" id="modifyPrice" name="price" step="0.001" min="0.001" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="modifyQuantity" class="form-label">交易数量</label>
+                            <input type="number" class="form-control" id="modifyQuantity" name="quantity" min="1" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="modifyTransactionDate" class="form-label">交易日期</label>
+                            <input type="date" class="form-control" id="modifyTransactionDate" name="transaction_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="modifyTransactionFee" class="form-label">交易费用</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" class="form-control" id="modifyTransactionFee" name="transaction_fee" step="0.01" min="0" value="0">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="modifyBuyReason" class="form-label">买入理由</label>
+                            <textarea class="form-control" id="modifyBuyReason" name="buy_reason" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="modifySellReason" class="form-label">卖出理由</label>
+                            <textarea class="form-control" id="modifySellReason" name="sell_reason" rows="2"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="modifyReason" class="form-label">修改原因 <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="modifyReason" name="modify_reason" rows="3" 
+                                  placeholder="请详细说明修改的原因..." required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="saveModifyBtn">
+                    <i class="bi bi-check-circle"></i> 保存修改
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 快捷卖出模态框 -->
+<div class="modal fade" id="quickSellModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-dash-circle"></i> 快捷卖出
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickSellForm">
+                    <input type="hidden" id="quickSellDetailId" name="detail_id">
+                    <input type="hidden" id="quickSellTradeId" name="trade_id">
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>快捷卖出说明：</strong>选择要卖出的仓位比例，系统将自动计算对应的数量和金额。
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="quickSellPrice" class="form-label">卖出价格 <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" class="form-control" id="quickSellPrice" name="price" step="0.001" min="0.001" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="quickSellDate" class="form-label">卖出日期 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="quickSellDate" name="transaction_date" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="quickSellFee" class="form-label">交易费用</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" class="form-control" id="quickSellFee" name="transaction_fee" step="0.01" min="0" value="0">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="quickSellReason" class="form-label">卖出理由</label>
+                            <textarea class="form-control" id="quickSellReason" name="sell_reason" rows="2" 
+                                      placeholder="记录卖出的原因..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">快捷卖出选项</label>
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-outline-primary quick-sell-btn" data-ratio="0.2">
+                                <i class="bi bi-1-circle"></i> 卖出 1/5 仓位
+                            </button>
+                            <button type="button" class="btn btn-outline-primary quick-sell-btn" data-ratio="0.25">
+                                <i class="bi bi-2-circle"></i> 卖出 1/4 仓位
+                            </button>
+                            <button type="button" class="btn btn-outline-primary quick-sell-btn" data-ratio="0.333">
+                                <i class="bi bi-3-circle"></i> 卖出 1/3 仓位
+                            </button>
+                            <button type="button" class="btn btn-outline-primary quick-sell-btn" data-ratio="0.5">
+                                <i class="bi bi-4-circle"></i> 卖出 1/2 仓位
+                            </button>
+                            <button type="button" class="btn btn-outline-danger quick-sell-btn" data-ratio="1.0">
+                                <i class="bi bi-5-circle"></i> 卖出全部仓位
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>注意：</strong>选择快捷卖出后，系统将自动计算卖出数量，请确认后再提交。
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning" id="confirmQuickSellBtn" disabled>
+                    <i class="bi bi-dash-circle"></i> 确认卖出
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -446,6 +637,187 @@ document.addEventListener('DOMContentLoaded', function() {
         deleteSingleBtn.addEventListener('click', function() {
             const tradeId = this.getAttribute('data-trade-id');
             showDeleteModal([tradeId]);
+        });
+    }
+    
+    // 修改交易明细功能
+    const modifyDetailModal = document.getElementById('modifyDetailModal');
+    if (modifyDetailModal) {
+        modifyDetailModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const detailId = button.getAttribute('data-detail-id');
+            const detailType = button.getAttribute('data-detail-type');
+            
+            // 获取交易明细数据
+            fetch(`/api/trade_detail/${detailId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const detail = data.detail;
+                        
+                        // 填充表单
+                        document.getElementById('modifyDetailId').value = detail.id;
+                        document.getElementById('modifySymbolCode').value = detail.symbol_code || '';
+                        document.getElementById('modifySymbolName').value = detail.symbol_name || '';
+                        document.getElementById('modifyPrice').value = detail.price || '';
+                        document.getElementById('modifyQuantity').value = detail.quantity || '';
+                        document.getElementById('modifyTransactionDate').value = detail.transaction_date || '';
+                        document.getElementById('modifyTransactionFee').value = detail.transaction_fee || '0';
+                        
+                        // 根据交易类型显示/隐藏相应字段
+                        if (detailType === 'buy') {
+                            document.getElementById('modifyBuyReason').value = detail.buy_reason || '';
+                            document.getElementById('modifySellReason').parentElement.parentElement.style.display = 'none';
+                        } else {
+                            document.getElementById('modifySellReason').value = detail.sell_reason || '';
+                            document.getElementById('modifyBuyReason').parentElement.parentElement.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('获取交易明细失败:', error);
+                    alert('获取交易明细失败，请重试');
+                });
+        });
+    }
+    
+    // 快捷卖出功能
+    const quickSellModal = document.getElementById('quickSellModal');
+    if (quickSellModal) {
+        quickSellModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const detailId = button.getAttribute('data-detail-id');
+            const tradeId = button.getAttribute('data-trade-id');
+            
+            // 设置隐藏字段
+            document.getElementById('quickSellDetailId').value = detailId;
+            document.getElementById('quickSellTradeId').value = tradeId;
+            
+            // 设置默认日期为今天
+            document.getElementById('quickSellDate').value = new Date().toISOString().split('T')[0];
+            
+            // 重置表单
+            document.getElementById('quickSellForm').reset();
+            document.getElementById('confirmQuickSellBtn').disabled = true;
+        });
+        
+        // 快捷卖出按钮点击事件
+        const quickSellBtns = document.querySelectorAll('.quick-sell-btn');
+        quickSellBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const ratio = parseFloat(this.getAttribute('data-ratio'));
+                
+                // 获取买入明细的数量
+                const detailId = document.getElementById('quickSellDetailId').value;
+                fetch(`/api/trade_detail/${detailId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const detail = data.detail;
+                            const sellQuantity = Math.floor(detail.quantity * ratio);
+                            
+                            if (sellQuantity > 0) {
+                                // 显示确认信息
+                                alert(`将卖出 ${sellQuantity} 股 (${(ratio * 100).toFixed(1)}% 仓位)`);
+                                document.getElementById('confirmQuickSellBtn').disabled = false;
+                            } else {
+                                alert('计算卖出数量失败，请重试');
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('获取交易明细失败:', error);
+                        alert('获取交易明细失败，请重试');
+                    });
+            });
+        });
+        
+        // 确认快捷卖出
+        const confirmQuickSellBtn = document.getElementById('confirmQuickSellBtn');
+        if (confirmQuickSellBtn) {
+            confirmQuickSellBtn.addEventListener('click', function() {
+                const formData = new FormData(document.getElementById('quickSellForm'));
+                
+                // 验证必填字段
+                const price = formData.get('price');
+                const transactionDate = formData.get('transaction_date');
+                
+                if (!price || !transactionDate) {
+                    alert('请填写卖出价格和日期');
+                    return;
+                }
+                
+                this.disabled = true;
+                this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 卖出中...';
+                
+                // 提交快捷卖出
+                fetch('/api/quick_sell', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('快捷卖出成功！');
+                        // 刷新页面
+                        window.location.reload();
+                    } else {
+                        alert('快捷卖出失败：' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('快捷卖出失败:', error);
+                    alert('快捷卖出失败，请重试');
+                })
+                .finally(() => {
+                    this.disabled = false;
+                    this.innerHTML = '<i class="bi bi-dash-circle"></i> 确认卖出';
+                });
+            });
+        }
+    }
+    
+    // 保存修改按钮
+    const saveModifyBtn = document.getElementById('saveModifyBtn');
+    if (saveModifyBtn) {
+        saveModifyBtn.addEventListener('click', function() {
+            const form = document.getElementById('modifyDetailForm');
+            
+            if (!form.checkValidity()) {
+                form.classList.add('was-validated');
+                return;
+            }
+            
+            const formData = new FormData(form);
+            
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 保存中...';
+            
+            // 提交修改
+            fetch('/api/modify_trade_detail', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('修改成功！');
+                    // 关闭模态框并刷新页面
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('modifyDetailModal'));
+                    modal.hide();
+                    window.location.reload();
+                } else {
+                    alert('修改失败：' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('修改失败:', error);
+                alert('修改失败，请重试');
+            })
+            .finally(() => {
+                this.disabled = false;
+                this.innerHTML = '<i class="bi bi-check-circle"></i> 保存修改';
+            });
         });
     }
     

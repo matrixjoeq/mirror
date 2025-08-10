@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-趋势交易跟踪系统 - 主应用文件（重构版）
+多策略系统分析 - 主应用文件（重构版）
 """
 
 import os
@@ -28,6 +28,15 @@ def create_app(config_name=None):
     app.register_blueprint(strategy_bp)
     app.register_blueprint(analysis_bp)
     app.register_blueprint(api_bp)
+
+    # 初始化并挂载服务到 app（供路由通过 current_app 使用）
+    from services import DatabaseService, TradingService, StrategyService, AnalysisService
+    app.db_service = DatabaseService()
+    app.trading_service = TradingService(app.db_service)
+    app.strategy_service = StrategyService(app.db_service)
+    app.analysis_service = AnalysisService(app.db_service)
+    # 兼容旧引用
+    app.tracker = app.trading_service
     
     # 全局错误处理
     @app.errorhandler(404)
@@ -41,16 +50,11 @@ def create_app(config_name=None):
     return app
 
 
-# 为了兼容性，创建全局app实例
+# 为了兼容性，创建全局app实例，并导出全局 tracker 引用
 app = create_app()
-
-# 为了兼容性，创建全局tracker实例
-from services import DatabaseService, TradingService, StrategyService, AnalysisService
-
-# 初始化服务
-db_service = DatabaseService()
-tracker = TradingService(db_service)  # 保持向后兼容
+tracker = app.trading_service  # 保持向后兼容
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    from config import Config
+    app.run(debug=app.config.get('DEBUG', True), host=Config.HOST, port=Config.PORT)

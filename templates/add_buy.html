@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}新建买入交易 - 趋势交易跟踪系统{% endblock %}
+{% block title %}新建买入交易 - 多策略系统分析{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -27,7 +27,7 @@
                             <select class="form-select" id="strategy" name="strategy" required>
                                 {% for strategy in strategies_data %}
                                 <option value="{{ strategy.id }}" 
-                                        {{ 'selected' if default_strategy == strategy.id|string else '' }}
+                                        {{ 'selected' if default_strategy and default_strategy == strategy.id else '' }}
                                         data-description="{{ strategy.description or '' }}"
                                         data-tags="{{ strategy.tags|join(', ') }}">
                                     {{ strategy.name }}
@@ -261,8 +261,29 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 自动转换标的代码为大写
     const symbolCodeInput = document.getElementById('symbol_code');
+    const symbolNameInput = document.getElementById('symbol_name');
+    let lookupTimer = null;
     symbolCodeInput.addEventListener('input', function() {
         this.value = this.value.toUpperCase();
+        // 防抖：用户停止输入 300ms 后再查询
+        if (lookupTimer) clearTimeout(lookupTimer);
+        lookupTimer = setTimeout(async () => {
+            const code = this.value.trim();
+            if (!code) return;
+            try {
+                const resp = await fetch(`/api/symbol_lookup?symbol_code=${encodeURIComponent(code)}`);
+                const data = await resp.json();
+                if (data && data.success && data.found) {
+                    // 仅当名称为空或与返回值不同且用户未手动修改时回填
+                    if (!symbolNameInput.value || symbolNameInput.value.trim() === '') {
+                        symbolNameInput.value = data.data.symbol_name;
+                    }
+                }
+            } catch (e) {
+                // 静默失败，不打扰用户
+                console.warn('symbol lookup failed', e);
+            }
+        }, 300);
     });
 });
 </script>

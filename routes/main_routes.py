@@ -6,6 +6,7 @@
 
 from flask import Blueprint, render_template, current_app, request
 from services import TradingService, StrategyService, AnalysisService
+from decimal import Decimal
 
 main_bp = Blueprint('main', __name__)
 
@@ -25,7 +26,6 @@ def index():
         
         # 转换策略为字典格式 (模板期望的格式)
         strategies = {str(s['id']): s['name'] for s in strategies_list}
-        strategies['all'] = '所有策略'  # 添加"所有策略"选项
         
         # 计算基础统计
         total_trades = len(all_trades)
@@ -36,16 +36,27 @@ def index():
         # 计算总体表现
         overall_performance = analysis_service.calculate_strategy_score()
         
-        # 获取最近的交易
-        recent_trades = all_trades[:10] if all_trades else []
+        # 获取最近的交易（按更新时间/创建时间降序取前10）
+        recent_trades = sorted(all_trades, key=lambda t: (t.get('updated_at'), t.get('created_at')), reverse=True)[:10] if all_trades else []
         
         # 获取查询参数
         selected_strategy = request.args.get('strategy', 'all')
+        # 若选择了具体策略，按策略过滤统计
+        if selected_strategy != 'all' and selected_strategy in strategies:
+            filtered_trades = [t for t in all_trades if str(t['strategy_id']) == selected_strategy]
+        else:
+            filtered_trades = all_trades
         
         # 构建stats对象
+        # 汇总概览数据
         stats = {
             'selected_strategy': selected_strategy,
-            'strategy_stats': {}  # 策略统计数据，暂时为空
+            'total_trades': len(filtered_trades),
+            'open_trades': len([t for t in filtered_trades if t['status'] == 'open']),
+            'closed_trades': len([t for t in filtered_trades if t['status'] == 'closed']),
+            'total_profit_loss': float(sum([t.get('total_profit_loss', 0) or 0 for t in filtered_trades])),
+            'recent_trades': recent_trades,
+            'strategy_stats': {}
         }
         
         return render_template('index.html',
@@ -67,5 +78,5 @@ def index():
                              total_strategies=0,
                              overall_performance={'stats': {}},
                              recent_trades=[],
-                             strategies={'all': '所有策略'},
-                             stats={'selected_strategy': 'all', 'strategy_stats': {}})
+                             strategies={},
+                             stats={'selected_strategy': 'all', 'strategy_stats': {}, 'total_trades': 0, 'open_trades': 0, 'closed_trades': 0, 'total_profit_loss': 0.0, 'recent_trades': []})

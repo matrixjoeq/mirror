@@ -1,0 +1,13 @@
+[run]
+branch = True
+
+[report]
+omit =
+    */__init__.py
+    */venv/*
+    */site-packages/*
+    tests/*
+
+# Note: 'omit' only applies to [run]/[report]. HTML/XML respect [report].
+
+

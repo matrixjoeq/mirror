@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}标的策略比较 - 多策略交易跟踪系统{% endblock %}
+{% block title %}标的策略比较 - 多策略系统分析{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
@@ -35,21 +35,29 @@
             <div class="card-body">
                 <!-- 预览各策略得分 -->
                 <div class="row text-center small mb-3">
-                    {% set strategy_colors = {
-                        'trend': {'color': 'primary', 'icon': 'graph-up'},
-                        'rotation': {'color': 'success', 'icon': 'arrow-repeat'},
-                        'grid': {'color': 'warning', 'icon': 'grid'},
-                        'arbitrage': {'color': 'info', 'icon': 'diagram-3'}
-                    } %}
-                    
-                    {% for strategy_code, strategy_name in strategies.items() %}
+                    {% for s in strategies_data %}
+                    {% set icon = 'graph-up' %}
+                    {% set color = 'secondary' %}
+                    {% if '趋势' in s.name %}
+                        {% set icon = 'graph-up' %}
+                        {% set color = 'primary' %}
+                    {% elif '轮动' in s.name %}
+                        {% set icon = 'arrow-repeat' %}
+                        {% set color = 'success' %}
+                    {% elif '网格' in s.name %}
+                        {% set icon = 'grid' %}
+                        {% set color = 'warning' %}
+                    {% elif '套利' in s.name %}
+                        {% set icon = 'diagram-3' %}
+                        {% set color = 'info' %}
+                    {% endif %}
                     <div class="col-6 mb-2">
                         <div class="border rounded p-2">
-                            <i class="bi bi-{{ strategy_colors[strategy_code]['icon'] }} text-{{ strategy_colors[strategy_code]['color'] }}"></i>
-                            <div class="small text-muted">{{ strategy_name }}</div>
-                            <div class="badge bg-{{ strategy_colors[strategy_code]['color'] }} loading-score" 
-                                 data-symbol="{{ symbol.symbol_code }}" 
-                                 data-strategy="{{ strategy_code }}">-</div>
+                            <i class="bi bi-{{ icon }} text-{{ color }}"></i>
+                            <div class="small text-muted">{{ s.name }}</div>
+                            <div class="badge bg-{{ color }} loading-score"
+                                 data-symbol="{{ symbol.symbol_code }}"
+                                 data-strategy="{{ s.id }}">-</div>
                         </div>
                     </div>
                     {% endfor %}
@@ -66,7 +74,7 @@
                 </div>
             </div>
             <div class="card-footer text-center">
-                <a href="{{ url_for('symbol_detail', symbol_code=symbol.symbol_code) }}" 
+                <a href="{{ url_for('analysis.symbol_detail', symbol_code=symbol.symbol_code) }}" 
                    class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-eye"></i> 详细分析
                 </a>
@@ -83,7 +91,7 @@
                 <i class="bi bi-inbox" style="font-size: 3rem; color: #dee2e6;"></i>
                 <h5 class="mt-3 text-muted">暂无标的数据</h5>
                 <p class="text-muted">还没有已平仓的交易记录，无法进行策略比较分析。</p>
-                <a href="{{ url_for('add_buy') }}" class="btn btn-primary">
+                <a href="{{ url_for('trading.add_buy') }}" class="btn btn-primary">
                     <i class="bi bi-plus-circle"></i> 添加交易记录
                 </a>
             </div>
@@ -151,40 +159,41 @@ async function loadSymbolScores(symbolCode) {
     
     for (const strategy of strategiesData) {
         try {
-            const response = await fetch(`/api/strategy_score?strategy_id=${strategy.id}&symbol=${symbolCode}`);
-            const score = await response.json();
-            
+            const response = await fetch(`/api/strategy_score?strategy_id=${strategy.id}&symbol_code=${symbolCode}`);
+            const { success, data } = await response.json();
+
+            // 计算总分，以便复用
+            const totalScore = success ? ((data.win_rate_score || 0) + (data.profit_loss_ratio_score || 0) + (data.frequency_score || 0)) : -1;
+
             // 更新得分显示
             const scoreElement = document.querySelector(`[data-symbol="${symbolCode}"][data-strategy="${strategy.id}"]`);
             if (scoreElement) {
-                scoreElement.textContent = score.total_score;
-                
-                // 根据评级设置颜色
-                scoreElement.className = scoreElement.className.replace(/bg-\w+/, '');
-                if (score.total_score >= 23) {
-                    scoreElement.classList.add('bg-success');
-                } else if (score.total_score >= 20) {
-                    scoreElement.classList.add('bg-info');
-                } else if (score.total_score >= 18) {
-                    scoreElement.classList.add('bg-warning');
+                if (success) {
+                    scoreElement.textContent = totalScore;
+                    scoreElement.className = scoreElement.className.replace(/bg-\w+/, '');
+                    if (totalScore >= 23) {
+                        scoreElement.classList.add('bg-success');
+                    } else if (totalScore >= 20) {
+                        scoreElement.classList.add('bg-info');
+                    } else if (totalScore >= 18) {
+                        scoreElement.classList.add('bg-warning');
+                    } else {
+                        scoreElement.classList.add('bg-danger');
+                    }
                 } else {
-                    scoreElement.classList.add('bg-danger');
+                    scoreElement.textContent = 'N/A';
+                    scoreElement.classList.add('bg-secondary');
                 }
             }
-            
+
             // 寻找最佳策略
-            if (score.total_score > bestScore) {
-                bestScore = score.total_score;
-                bestStrategy = {
-                    id: strategy.id,
-                    name: strategy.name,
-                    score: score.total_score,
-                    rating: score.rating
-                };
+            if (success && totalScore > bestScore) {
+                bestScore = totalScore;
+                bestStrategy = { id: strategy.id, name: strategy.name, score: totalScore, rating: '' };
             }
         } catch (error) {
             console.error(`Failed to load score for ${strategy} on ${symbolCode}:`, error);
-            const scoreElement = document.querySelector(`[data-symbol="${symbolCode}"][data-strategy="${strategy}"]`);
+            const scoreElement = document.querySelector(`[data-symbol="${symbolCode}"][data-strategy="${strategy.id}"]`);
             if (scoreElement) {
                 scoreElement.textContent = 'N/A';
                 scoreElement.classList.add('bg-secondary');

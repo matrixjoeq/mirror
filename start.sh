@@ -1,23 +1,31 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# 趋势交易跟踪系统启动脚本
+# 多策略系统分析 启动脚本
+set -euo pipefail
 
-echo "🚀 趋势交易跟踪系统启动中..."
+echo "🚀 多策略系统分析 启动中..."
 
-# 检查虚拟环境是否存在
-if [ ! -d "venv" ]; then
-    echo "📦 创建虚拟环境..."
-    python3 -m venv venv
+# 选择 Python 解释器（优先 python3）
+if command -v python3 >/dev/null 2>&1; then
+  PY=python3
+else
+  PY=python
 fi
 
-# 激活虚拟环境
-echo "🔄 激活虚拟环境..."
-source venv/bin/activate
+# 检查并激活已有 venv（不自动创建）
+if [ -f "venv/bin/activate" ]; then
+  echo "🔄 检测到 venv，正在激活..."
+  # shellcheck disable=SC1091
+  source venv/bin/activate
+else
+  echo "⚠️  未检测到 venv，将直接使用系统 Python 运行（不自动创建）。"
+fi
 
-# 检查依赖是否已安装
-if [ ! -f "venv/lib/python*/site-packages/flask/__init__.py" ]; then
-    echo "📚 安装依赖包..."
-    python3 -m pip install -r requirements.txt
+# 依赖检查（若缺失 Flask 则安装 requirements）
+echo "🔎 检查依赖..."
+if ! $PY -m pip show flask >/dev/null 2>&1; then
+  echo "📚 安装依赖包..."
+  $PY -m pip install -r requirements.txt
 fi
 
 # 启动应用
@@ -26,4 +34,4 @@ echo "📍 访问地址: http://127.0.0.1:8383"
 echo "⌨️  按 Ctrl+C 停止应用"
 echo ""
 
-python3 app.py
+$PY app.py

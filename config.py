@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-趋势交易跟踪系统 - 配置管理
+多策略系统分析 - 配置管理
 """
 
 import os
@@ -12,6 +12,9 @@ class Config:
     
     # 基础配置
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'trend_trading_tracker_2024'
+    # 服务器配置
+    HOST = os.environ.get('HOST', '0.0.0.0')
+    PORT = int(os.environ.get('PORT', 8383))
     
     # 数据库配置
     BASE_DIR = Path(__file__).parent

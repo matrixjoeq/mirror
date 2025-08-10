@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}首页 - 多策略交易跟踪系统{% endblock %}
+{% block title %}首页 - 多策略系统分析{% endblock %}
 
 {% block content %}
 <!-- 策略选择器 -->
@@ -371,7 +371,7 @@ function loadDashboardData() {
     document.getElementById('closedTrades').textContent = '{{ stats.closed_trades }}';
     
     // 格式化总盈亏显示
-    const totalProfitLoss = {{ stats.total_profit_loss }};
+    const totalProfitLoss = {{ stats.total_profit_loss|default(0.0) }};
     const profitLossElement = document.getElementById('totalProfitLoss');
     if (totalProfitLoss > 0) {
         profitLossElement.textContent = '+¥' + totalProfitLoss.toFixed(3);

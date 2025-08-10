@@ -24,23 +24,31 @@
                 <!-- 策略评分概览 -->
                 {% set best_strategy = strategy_scores | selectattr('total_score', 'equalto', (strategy_scores | map(attribute='total_score') | max)) | first %}
                 <div class="row">
-                    {% set strategy_colors = {
-                        'trend': {'color': 'primary', 'icon': 'graph-up'},
-                        'rotation': {'color': 'success', 'icon': 'arrow-repeat'},
-                        'grid': {'color': 'warning', 'icon': 'grid'},
-                        'arbitrage': {'color': 'info', 'icon': 'diagram-3'}
-                    } %}
-                    
                     {% for score in strategy_scores %}
+                    {% set icon = 'graph-up' %}
+                    {% set color = 'secondary' %}
+                    {% if '趋势' in score.strategy_name %}
+                        {% set icon = 'graph-up' %}
+                        {% set color = 'primary' %}
+                    {% elif '轮动' in score.strategy_name %}
+                        {% set icon = 'arrow-repeat' %}
+                        {% set color = 'success' %}
+                    {% elif '网格' in score.strategy_name %}
+                        {% set icon = 'grid' %}
+                        {% set color = 'warning' %}
+                    {% elif '套利' in score.strategy_name %}
+                        {% set icon = 'diagram-3' %}
+                        {% set color = 'info' %}
+                    {% endif %}
                     <div class="col-md-3 col-sm-6 text-center mb-3">
-                        <div class="card border-{{ strategy_colors[score.strategy_code]['color'] }} {% if best_strategy and score.strategy_code == best_strategy.strategy_code %}border-3{% endif %} position-relative">
-                            {% if best_strategy and score.strategy_code == best_strategy.strategy_code %}
+                        <div class="card border-{{ color }} {% if best_strategy and score.strategy_id == best_strategy.strategy_id %}border-3{% endif %} position-relative">
+                            {% if best_strategy and score.strategy_id == best_strategy.strategy_id %}
                             <div class="position-absolute top-0 start-50 translate-middle">
                                 <span class="badge bg-warning text-dark best-strategy-badge">🏆 最佳</span>
                             </div>
                             {% endif %}
                             <div class="card-body p-2 pt-3">
-                                <i class="bi bi-{{ strategy_colors[score.strategy_code]['icon'] }} text-{{ strategy_colors[score.strategy_code]['color'] }} fs-4"></i>
+                                <i class="bi bi-{{ icon }} text-{{ color }} fs-4"></i>
                                 <div class="small">{{ score.strategy_name }}</div>
                                 <div class="h5 mb-1 
                                     {% if score.total_score >= 23 %}text-success
@@ -57,7 +65,7 @@
                                     {% else %}bg-danger{% endif %}">
                                     {{ score.rating }}
                                 </div>
-                                {% if best_strategy and score.strategy_code == best_strategy.strategy_code %}
+                                {% if best_strategy and score.strategy_id == best_strategy.strategy_id %}
                                 <div class="mt-2">
                                     <small class="text-muted">
                                         交易: {{ score.stats.total_trades }}笔 | 胜率: {{ score.stats.win_rate }}%
@@ -134,9 +142,23 @@
                             {% for score in strategy_scores %}
                             <tr class="{% if loop.index == 1 %}table-success{% endif %}">
                                 <td>
-                                    <i class="bi bi-{{ strategy_colors[score.strategy_code]['icon'] }} text-{{ strategy_colors[score.strategy_code]['color'] }}"></i>
-                                    <strong>{{ score.strategy_name }}</strong><br>
-                                    <small class="text-muted">{{ score.strategy_code }}</small>
+                                    {% set icon = 'graph-up' %}
+                                    {% set color = 'secondary' %}
+                                    {% if '趋势' in score.strategy_name %}
+                                        {% set icon = 'graph-up' %}
+                                        {% set color = 'primary' %}
+                                    {% elif '轮动' in score.strategy_name %}
+                                        {% set icon = 'arrow-repeat' %}
+                                        {% set color = 'success' %}
+                                    {% elif '网格' in score.strategy_name %}
+                                        {% set icon = 'grid' %}
+                                        {% set color = 'warning' %}
+                                    {% elif '套利' in score.strategy_name %}
+                                        {% set icon = 'diagram-3' %}
+                                        {% set color = 'info' %}
+                                    {% endif %}
+                                    <i class="bi bi-{{ icon }} text-{{ color }}"></i>
+                                    <strong>{{ score.strategy_name }}</strong>
                                 </td>
                                 <td>
                                     <span class="badge 
@@ -159,7 +181,7 @@
                                 <td>{{ score.stats.total_transaction_fees }}</td>
                                 <td>{{ score.stats.total_fee_ratio }}%</td>
                                 <td>
-                                    <canvas id="triangle-{{ score.strategy_code }}" width="80" height="70"></canvas>
+                                    <canvas id="triangle-{{ score.strategy_id }}" width="80" height="70"></canvas>
                                 </td>
                                 <td>
                                     {% if loop.index == 1 %}
@@ -248,7 +270,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     // 绘制各策略的小三角图
     {% for score in strategy_scores %}
-    drawTriangleScore('triangle-{{ score.strategy_code }}', 
+    drawTriangleScore('triangle-{{ score.strategy_id }}', 
                      {{ score.win_rate_score }}, 
                      {{ score.profit_loss_ratio_score }}, 
                      {{ score.frequency_score }}, 

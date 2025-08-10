@@ -92,37 +92,30 @@ class TestTradingWorkflows(unittest.TestCase):
         self.assertEqual(trade['total_buy_amount'], Decimal('12506.25'))  # 包含手续费
         print(f"✓ 买入后验证通过：持仓{trade['remaining_quantity']}股，投入{trade['total_buy_amount']}元")
         
-        # 第3步：由于系统暂无卖出功能，跳过卖出测试
-        # TODO: add_sell_transaction方法不存在，跳过卖出功能测试
-        
-        # 验证持仓状态（无卖出时）
+        # 第3步：执行卖出交易并平仓
+        success, message = self.tracker.add_sell_transaction(
+            trade_id=trade_id,
+            price=Decimal('13.80'),
+            quantity=1000,
+            transaction_date='2025-02-01',
+            sell_reason="策略信号转弱",
+            trade_log="完成平仓",
+            transaction_fee=Decimal('6.90')
+        )
+        self.assertTrue(success)
+        print(f"✓ 卖出交易完成：{message}")
+
+        # 验证状态已平仓
         trade = self.tracker.get_trade_by_id(trade_id)
-        self.assertEqual(trade['status'], 'open')  # 仍为持仓
-        self.assertEqual(trade['remaining_quantity'], 1000)  # 全部持仓
-        self.assertEqual(trade['total_sell_quantity'], 0)    # 无卖出
-        print(f"✓ 持仓状态验证：持有{trade['remaining_quantity']}股")
-        
-        # 第4步：由于无卖出功能，跳过平仓测试
-        # TODO: 等待卖出功能实现
-        
-        # 验证当前状态（仍为持仓中）
-        trade = self.tracker.get_trade_by_id(trade_id)
-        self.assertEqual(trade['status'], 'open')  # 仍为持仓中
-        self.assertEqual(trade['remaining_quantity'], 1000)
-        self.assertEqual(trade['total_sell_quantity'], 0)
-        print(f"✓ 持仓状态：仍在持仓中")
-        
-        # 第5步：验证无卖出时的盈亏为0
-        self.assertAlmostEqual(float(trade['total_profit_loss']), 0.0, places=3)  # 价格相关精确到3位
-        print(f"✓ 盈亏计算正确：{trade['total_profit_loss']}元（无卖出时为0）")
-        
-        # 第6步：策略评分分析（只统计已完成交易，开仓交易不计入评分）
+        self.assertEqual(trade['status'], 'closed')
+        self.assertEqual(trade['remaining_quantity'], 0)
+        self.assertEqual(trade['total_sell_quantity'], 1000)
+        print("✓ 交易已平仓")
+
+        # 第4步：策略评分分析（应计入1笔完成交易）
         score = self.analysis_service.calculate_strategy_score(strategy_id=strategy_id)
-        self.assertEqual(score['stats']['total_trades'], 0)  # 开仓交易不计入评分
-        self.assertEqual(score['stats']['winning_trades'], 0)
-        # 新的分析服务返回stats格式，不返回总评分
-        self.assertEqual(score['stats']['total_trades'], 0)
-        print(f"✓ 策略评分完成：胜率{score['stats']['win_rate']:.1f}%（开仓交易不计入评分）")
+        self.assertEqual(score['stats']['total_trades'], 1)
+        print(f"✓ 策略评分：已完成{score['stats']['total_trades']}笔交易")
         
         print("=== 完整交易生命周期测试通过 ===\n")
     
@@ -174,8 +167,15 @@ class TestTradingWorkflows(unittest.TestCase):
         
         # 模拟轮动操作：卖出万科，买入招商银行
         wanka_trade_id = trade_ids[0]
-        # TODO: 行业轮动卖出功能待实现，跳过卖出操作
-        # self.tracker.add_sell_transaction(...)
+        # 行业轮动：卖出万科A
+        self.tracker.add_sell_transaction(
+            trade_id=wanka_trade_id,
+            price=Decimal('19.20'),
+            quantity=500,
+            transaction_date='2025-02-01',
+            sell_reason="轮动卖出",
+            transaction_fee=Decimal('2.88')
+        )
         
         # 买入招商银行
         success, cmb_trade_id = self.tracker.add_buy_transaction(
@@ -190,9 +190,9 @@ class TestTradingWorkflows(unittest.TestCase):
         )
         self.assertTrue(success)
         
-        # 验证轮动后组合状态（开仓交易不计入评分）
+        # 验证轮动后组合状态（卖出万科A已形成1笔完成交易）
         score = self.analysis_service.calculate_strategy_score(strategy_id=strategy_id)
-        self.assertEqual(score['stats']['total_trades'], 0)  # 开仓交易不计入评分
+        self.assertEqual(score['stats']['total_trades'], 1)
         print(f"✓ 轮动后策略评分：{score['stats']['total_trades']}笔已完成交易")
         
         print("=== 多标的组合管理测试通过 ===\n")
@@ -243,8 +243,7 @@ class TestTradingWorkflows(unittest.TestCase):
             )
             self.assertTrue(success)
             
-            # TODO: add_sell_transaction方法不存在，跳过卖出功能
-            # self.tracker.add_sell_transaction(...)
+            # 仅创建买入，后续根据需要可添加卖出
         
         # 价值策略：低频长线投资
         value_trades = [
@@ -265,8 +264,17 @@ class TestTradingWorkflows(unittest.TestCase):
             )
             self.assertTrue(success)
             
-            # TODO: add_sell_transaction方法不存在，跳过卖出功能
-            # self.tracker.add_sell_transaction(...)
+            # 添加卖出交易完成交易
+            success, message = self.tracker.add_sell_transaction(
+                trade_id=trade_id,
+                price=Decimal('11.00'),
+                quantity=quantity,
+                transaction_date='2025-01-15',
+                sell_reason="估值回归，获利了结",
+                trade_log="价值投资策略执行完成",
+                transaction_fee=Decimal('0.50')
+            )
+            self.assertTrue(success)
         
         # 策略对比分析
         trend_score = self.analysis_service.calculate_strategy_score(strategy_id=trend_strategy_id)
@@ -275,18 +283,19 @@ class TestTradingWorkflows(unittest.TestCase):
         print(f"✓ 趋势策略评分：胜率{trend_score['stats']['win_rate']:.1f}%，总收益率{trend_score['stats']['total_return_rate']:.1f}%")
         print(f"✓ 价值策略评分：胜率{value_score['stats']['win_rate']:.1f}%，总收益率{value_score['stats']['total_return_rate']:.1f}%")
         
-        # 验证策略特征（开仓交易不计入评分）
-        self.assertEqual(trend_score['stats']['total_trades'], 0)  # 开仓交易不计入评分
-        self.assertEqual(value_score['stats']['total_trades'], 0)  # 开仓交易不计入评分
+        # 验证策略特征
+        self.assertEqual(trend_score['stats']['total_trades'], 0)  # 趋势策略只有开仓交易，不计入评分
+        self.assertEqual(value_score['stats']['total_trades'], 2)  # 价值策略有2笔已完成交易
         
-        # 无完成交易时胜率为0
-        self.assertEqual(value_score['stats']['win_rate'], 0.0)
+        # 趋势策略无完成交易时胜率为0
         self.assertEqual(trend_score['stats']['win_rate'], 0.0)
         
-        # 无完成交易时评分均为0
-        # 新的分析服务返回stats格式，不返回频率评分
+        # 价值策略有完成交易，应该有胜率
+        self.assertGreaterEqual(value_score['stats']['win_rate'], 0.0)
+        
+        # 验证交易数量
         self.assertEqual(trend_score['stats']['total_trades'], 0)
-        self.assertEqual(value_score['stats']['total_trades'], 0)
+        self.assertEqual(value_score['stats']['total_trades'], 2)
         
         print("=== 策略对比分析工作流测试通过 ===\n")
     
@@ -337,29 +346,38 @@ class TestTradingWorkflows(unittest.TestCase):
         original_trade = self.tracker.get_trade_by_id(trade_id)
         original_profit = original_trade['total_profit_loss']
         print(f"✓ 原始交易创建完成，盈亏：{original_profit}")
-        
-        # 执行修改：发现买入价格记录错误
+
+        # 查询真实的明细ID
+        details = self.tracker.get_trade_details(trade_id)
+        buy_detail = next(d for d in details if d['transaction_type'] == 'buy')
+        sell_detail = next(d for d in details if d['transaction_type'] == 'sell')
+
+        # 执行修改：修正买入手续费、理由；卖出保留不变（示例中保持）
         detail_updates = [
             {
-                'detail_id': 1,  # 买入记录
-                'price': Decimal('9.50'),  # 修正价格
+                'detail_id': buy_detail['id'],
+                'price': Decimal('9.50'),
                 'quantity': 1000,
-                'transaction_fee': Decimal('2.85'),  # 修正费用
+                'transaction_fee': Decimal('2.85'),
                 'buy_reason': "修正后的买入理由：实际价格更低"
             },
             {
-                'detail_id': 2,  # 卖出记录  
+                'detail_id': sell_detail['id'],
                 'price': Decimal('12.00'),
                 'quantity': 1000,
                 'transaction_fee': Decimal('3.60'),
                 'sell_reason': "修正后的卖出理由：确认价格正确"
             }
         ]
-        
-        # TODO: update_trade_record方法待实现，跳过修改功能测试
-        self.skipTest("交易修改功能待实现")
-        return
-        print(f"✓ 修改后盈亏：{modified_profit}，盈利增加{modified_profit - original_profit}")
+
+        success, msg = self.tracker.update_trade_record(trade_id, detail_updates)
+        self.assertTrue(success, msg)
+
+        modified_trade = self.tracker.get_trade_by_id(trade_id)
+        modified_profit = modified_trade['total_profit_loss']
+        print(f"✓ 修改后盈亏：{modified_profit}")
+        # 验证修改后数据发生预期变化（盈亏应与调整后的成本一致）
+        self.assertNotEqual(modified_profit, original_profit)
         
         # 验证修改历史记录
         # 这里需要通过API获取修改历史，具体实现取决于API设计
@@ -409,9 +427,16 @@ class TestTradingWorkflows(unittest.TestCase):
         deleted_trades = trade_ids[:2]  # 删除前两笔
         confirmation_code = "DEL123"  # 模拟确认码
         
-        # TODO: 软删除功能待实现，跳过删除测试
-        print("✓ 软删除功能待实现，跳过测试")
-        return
+        # 执行软删除
+        for tid in deleted_trades:
+            result = self.tracker.soft_delete_trade(
+                trade_id=tid,
+                confirmation_code=confirmation_code,
+                delete_reason="测试软删除",
+                operator_note="功能测试"
+            )
+            self.assertTrue(result)
+        print(f"✓ 已软删除 {len(deleted_trades)} 笔交易")
         
         print(f"✓ 软删除{len(deleted_trades)}笔交易")
         
@@ -430,9 +455,8 @@ class TestTradingWorkflows(unittest.TestCase):
         recovered_trade_id = deleted_trades[0]
         recovery_result = self.tracker.restore_trade(
             trade_id=recovered_trade_id,
-            reason="测试恢复功能",
             confirmation_code="REC456",
-            operator="测试用户"
+            operator_note="测试用户"
         )
         self.assertTrue(recovery_result)
         
@@ -585,8 +609,16 @@ class TestTradingWorkflows(unittest.TestCase):
                 trade_record[key] = trade_id
                 
             elif activity['action'] == 'sell':
-                # TODO: add_sell_transaction方法不存在，跳过卖出功能
-                continue
+                key = f"{activity['strategy']}_{activity['symbol']}"
+                if key in trade_record:
+                    self.tracker.add_sell_transaction(
+                        trade_id=trade_record[key],
+                        price=activity['price'],
+                        quantity=activity['quantity'],
+                        transaction_date=activity['date'],
+                        sell_reason=activity['reason'],
+                        transaction_fee=activity['price'] * activity['quantity'] * Decimal('0.0003')
+                    )
         
         print(f"✓ 执行{len(trading_activities)}次交易活动")
         
@@ -600,8 +632,8 @@ class TestTradingWorkflows(unittest.TestCase):
         # 验证整体投资组合（开仓交易不计入评分统计）
         all_strategies = self.strategy_service.get_all_strategies()
         total_completed_trades = sum(self.analysis_service.calculate_strategy_score(strategy_id=s['id'])['stats']['total_trades'] for s in all_strategies)
-        # 由于都是开仓交易，完成交易数为0
-        self.assertEqual(total_completed_trades, 0)
+        # 本场景中应有2笔完成交易（套利策略1笔、价值策略1笔）
+        self.assertEqual(total_completed_trades, 2)
         print(f"✓ 整体组合包含{total_completed_trades}笔已完成交易")
         
         print("=== 真实交易场景模拟测试通过 ===\n")

@@ -1,29 +1,27 @@
 @echo off
-chcp 65001 > nul
-echo 🚀 趋势交易跟踪系统启动中...
+setlocal EnableExtensions
+echo [START] Multi-Strategy System Analysis
 
-REM 检查虚拟环境是否存在
-if not exist "venv" (
-    echo 📦 创建虚拟环境...
-    python -m venv venv
+REM Resolve Python interpreter
+set "PY=python"
+where python3 >nul 2>&1 && set "PY=python3"
+if exist "venv\Scripts\python.exe" set "PY=venv\Scripts\python.exe"
+
+echo [INFO] Using interpreter: %PY%
+
+REM Dependency check
+echo [INFO] Checking dependencies...
+"%PY%" -m pip show flask >nul 2>&1
+if errorlevel 1 (
+  echo [INFO] Installing requirements...
+  "%PY%" -m pip install -r requirements.txt
 )
 
-REM 激活虚拟环境
-echo 🔄 激活虚拟环境...
-call venv\Scripts\activate.bat
+REM Start application
+echo [INFO] Starting web app...
+echo [INFO] Visit: http://127.0.0.1:8383
+echo [INFO] Press Ctrl+C to stop
 
-REM 检查依赖是否已安装
-if not exist "venv\Lib\site-packages\flask" (
-    echo 📚 安装依赖包...
-    python -m pip install -r requirements.txt
-)
+"%PY%" app.py
 
-REM 启动应用
-echo 🌐 启动Web应用...
-echo 📍 访问地址: http://127.0.0.1:8383
-echo ⌨️  按 Ctrl+C 停止应用
-echo.
-
-python app.py
-
-pause
+endlocal
