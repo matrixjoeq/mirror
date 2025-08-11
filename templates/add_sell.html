@@ -29,6 +29,7 @@
                     <div class="col-md-3">
                         <strong>平均成本:</strong><br>
                         ¥{{ "%.3f"|format(trade.total_buy_amount / trade.total_buy_quantity) }}
+                        <small class="text-muted d-block">含手续费</small>
                     </div>
                 </div>
             </div>
@@ -193,7 +194,7 @@
                         <ul class="mb-0 mt-2">
                             <li>卖出后将无法撤销，请确认价格和数量</li>
                             <li>如果全部卖出，该笔交易将标记为已平仓</li>
-                            <li>盈亏将根据加权平均成本计算</li>
+                            <li>系统会按交易顺序采用先进先出（FIFO）自动匹配卖出份额；一次卖出的盈亏按所涉及的每一笔买入综合计算整体盈亏</li>
                         </ul>
                     </div>
                     
@@ -214,7 +215,8 @@
 
 {% block scripts %}
 <script>
-const avgBuyPrice = {{ "%.3f"|format(trade.total_buy_amount / trade.total_buy_quantity) }};
+// 用于盈亏预览的买入均价（不含手续费）
+const avgBuyPriceExFee = {{ "%.3f"|format(avg_buy_price_ex_fee|default(0.0)) }};
 const maxQuantity = {{ trade.remaining_quantity }};
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -238,11 +240,11 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        const sellAmount = price * quantity;
-        const netAmount = sellAmount - fee;
-        const buyCost = avgBuyPrice * quantity;
-        const profitLoss = netAmount - buyCost;
-        const profitLossPct = buyCost > 0 ? (profitLoss / buyCost) * 100 : 0;
+        const sellAmount = price * quantity;       // 毛卖出额（不含手续费）
+        const netAmount = sellAmount - fee;        // 净收入 = 卖出额 - 手续费
+        const buyCost = avgBuyPriceExFee * quantity; // 买入成本（不含手续费）
+        const profitLoss = sellAmount - buyCost;   // 盈亏金额不计入手续费
+        const profitLossPct = buyCost > 0 ? ((price - avgBuyPriceExFee) / avgBuyPriceExFee) * 100 : 0;
         
         // 显示/隐藏交易日志输入框（完全平仓时显示）
         if (quantity === maxQuantity && quantity > 0) {

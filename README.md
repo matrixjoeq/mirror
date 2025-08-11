@@ -1,4 +1,4 @@
-# 多策略系统分析 v2.0
+# 多策略系统分析 v3.0
 
 一个企业级的多策略交易管理和分析平台，支持动态策略管理、精确财务计算、数据审计跟踪和专业级策略分析。
 
@@ -30,10 +30,10 @@ start.bat
 source venv/bin/activate
 
 # 2. 安装依赖（首次运行）
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 
 # 3. 启动应用
-python app.py
+python3 app.py
 ```
 
 ### 访问应用
@@ -74,12 +74,12 @@ mirror/
 
 ```bash
 # 运行所有测试
-python run_tests.py
+python3 run_tests.py
 
 # 运行特定类型测试
-python run_tests.py unit        # 单元测试
-python run_tests.py functional  # 功能测试
-python run_tests.py integration # 集成测试
+python3 run_tests.py unit        # 单元测试
+python3 run_tests.py functional  # 功能测试
+python3 run_tests.py integration # 集成测试
 ```
 
 ## ⚠️ 注意事项
@@ -93,7 +93,11 @@ python run_tests.py integration # 集成测试
 
 - ✅ **核心功能**: 100% 完成
 - ✅ **文档完整**: 100% 完成
-- ✅ **测试覆盖**: 89% 完成
+- ✅ **测试覆盖（阶段性）**:
+  - 单元测试: 行覆盖率 92.7%/分支 92.4%
+  - 功能测试: 行覆盖率 82.8%/分支 78.8%
+  - 集成测试: 行覆盖率 74.0%/分支 69.5%
+  - 性能测试: 行覆盖率 49.4%/分支 31.9%（用例已全部通过，覆盖率后续提升）
 - ✅ **整体质量**: 企业级标准
 
 ---

@@ -104,17 +104,29 @@ class TradingService:
             if trade['remaining_quantity'] < quantity:
                 return False, f"卖出数量({quantity})超过剩余持仓({trade['remaining_quantity']})"
             
-            # 计算交易金额和盈亏
+            # 计算交易金额（amount 仍记录净额：卖出收入扣除卖出费用）
             sell_amount = price * quantity - transaction_fee
-            
-            # 计算平均买入成本（确保类型一致）
-            total_buy_amount = Decimal(str(trade['total_buy_amount']))
-            total_buy_quantity = Decimal(str(trade['total_buy_quantity']))
-            
-            avg_buy_price = total_buy_amount / total_buy_quantity if total_buy_quantity > 0 else Decimal('0')
-            buy_cost = avg_buy_price * Decimal(str(quantity))
-            profit_loss = sell_amount - buy_cost
-            profit_loss_pct = (profit_loss / buy_cost * 100) if buy_cost > 0 else Decimal('0')
+
+            # 计算不含费用的加权买入均价与盈亏（盈亏不计入任何费用）
+            # 按买入明细聚合，得到总买入金额（不含费用）与数量
+            buy_agg = self.db.execute_query(
+                """
+                SELECT COALESCE(SUM(price * quantity), 0) AS gross_buy,
+                       COALESCE(SUM(quantity), 0) AS qty
+                FROM trade_details
+                WHERE trade_id = ? AND transaction_type = 'buy' AND is_deleted = 0
+                """,
+                (trade_id,),
+                fetch_one=True,
+            )
+            gross_buy = Decimal(str(buy_agg['gross_buy'])) if buy_agg else Decimal('0')
+            total_buy_quantity = Decimal(str(buy_agg['qty'])) if buy_agg else Decimal('0')
+
+            avg_buy_price_ex_fee = (gross_buy / total_buy_quantity) if total_buy_quantity > 0 else Decimal('0')
+            buy_cost_ex_fee = avg_buy_price_ex_fee * Decimal(str(quantity))
+            gross_sell_amount = price * quantity
+            profit_loss = gross_sell_amount - buy_cost_ex_fee
+            profit_loss_pct = ((gross_sell_amount - buy_cost_ex_fee) / buy_cost_ex_fee * 100) if buy_cost_ex_fee > 0 else Decimal('0')
             
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
@@ -134,7 +146,19 @@ class TradingService:
                 new_sell_amount = Decimal(str(trade['total_sell_amount'])) + sell_amount
                 new_sell_quantity = trade['total_sell_quantity'] + quantity
                 new_profit_loss = Decimal(str(trade['total_profit_loss'])) + profit_loss
-                new_profit_loss_pct = (new_profit_loss / total_buy_amount * 100) if total_buy_amount > 0 else Decimal('0')
+                # 使用不含费用的总买入额作为分母计算汇总盈亏比例
+                # 以买入明细实时聚合为准，避免费用干扰
+                total_buy_gross_row = self.db.execute_query(
+                    """
+                    SELECT COALESCE(SUM(price * quantity), 0) AS gross_buy
+                    FROM trade_details
+                    WHERE trade_id = ? AND transaction_type = 'buy' AND is_deleted = 0
+                    """,
+                    (trade_id,),
+                    fetch_one=True,
+                )
+                total_buy_gross = Decimal(str(total_buy_gross_row['gross_buy'])) if total_buy_gross_row else Decimal('0')
+                new_profit_loss_pct = (new_profit_loss / total_buy_gross * 100) if total_buy_gross > 0 else Decimal('0')
                 
                 status = 'closed' if new_remaining == 0 else 'open'
                 close_date = transaction_date if status == 'closed' else None
@@ -218,6 +242,42 @@ class TradingService:
         
         details = self.db.execute_query(query, (trade_id,))
         return [dict(detail) for detail in details]
+
+    def compute_buy_detail_remaining_map(self, trade_id: int) -> Dict[int, int]:
+        """基于FIFO计算每个买入明细剩余可卖份额。
+
+        返回: {buy_detail_id: remaining_quantity}
+        """
+        # 读取该交易所有明细，按日期+创建顺序
+        query = "SELECT * FROM trade_details WHERE trade_id = ? AND is_deleted = 0 ORDER BY transaction_date, created_at, id"
+        rows = self.db.execute_query(query, (trade_id,))
+        details = [dict(r) for r in rows]
+
+        # 仅买入明细列表（FIFO队列）
+        buy_queue: List[Dict[str, Any]] = []
+        for d in details:
+            if d['transaction_type'] == 'buy':
+                buy_queue.append({'id': d['id'], 'remaining': int(d['quantity'])})
+
+        # 消耗卖出数量（FIFO）
+        for d in details:
+            if d['transaction_type'] == 'sell':
+                sell_qty = int(d['quantity'])
+                i = 0
+                while sell_qty > 0 and i < len(buy_queue):
+                    take = min(buy_queue[i]['remaining'], sell_qty)
+                    buy_queue[i]['remaining'] -= take
+                    sell_qty -= take
+                    if buy_queue[i]['remaining'] == 0:
+                        i += 1
+                    else:
+                        i += 1  # move forward to avoid infinite loop in unexpected data
+
+        # 生成映射
+        remaining_map: Dict[int, int] = {}
+        for b in buy_queue:
+            remaining_map[b['id']] = max(0, int(b['remaining']))
+        return remaining_map
     
     def soft_delete_trade(self, trade_id: int, confirmation_code: str, 
                          delete_reason: str, operator_note: str = '') -> bool:
@@ -402,9 +462,9 @@ class TradingService:
                 all_details = cursor.fetchall()
 
                 # 汇总买入与卖出
-                total_buy_amount = Decimal('0')
+                total_buy_amount = Decimal('0')  # 买入总额（含手续费）
                 total_buy_quantity = 0
-                total_sell_amount = Decimal('0')
+                total_sell_amount = Decimal('0')  # 卖出净收入（扣除手续费）
                 total_sell_quantity = 0
 
                 for d in all_details:
@@ -417,22 +477,50 @@ class TradingService:
 
                 remaining_quantity = total_buy_quantity - total_sell_quantity
 
-                # 以加权平均成本法重算每笔卖出明细盈亏
-                avg_buy_price = (total_buy_amount / Decimal(str(total_buy_quantity))) if total_buy_quantity > 0 else Decimal('0')
+                # 以加权平均成本法重算每笔卖出明细盈亏（不计入任何费用）
+                # 使用不含费用的买入均价：sum(price*qty)/sum(qty)
+                # 使用当前事务内的明细数据计算不含费用的买入总额与数量
+                gross_buy_total = Decimal('0')
+                gross_buy_qty = Decimal('0')
+                for d in all_details:
+                    if d['transaction_type'] == 'buy':
+                        gross_buy_total += Decimal(str(d['price'])) * Decimal(str(d['quantity']))
+                        gross_buy_qty += Decimal(str(d['quantity']))
+                avg_buy_price_ex_fee = (gross_buy_total / gross_buy_qty) if gross_buy_qty > 0 else Decimal('0')
                 total_profit_loss = Decimal('0')
                 for d in all_details:
                     if d['transaction_type'] == 'sell':
-                        sell_amount = Decimal(str(d['amount']))
-                        buy_cost = avg_buy_price * Decimal(str(d['quantity']))
-                        profit_loss = sell_amount - buy_cost
-                        profit_loss_pct = (profit_loss / buy_cost * 100) if buy_cost > 0 else Decimal('0')
-                        total_profit_loss += profit_loss
+                        # 毛卖出额（不含费用）
+                        gross_sell_amount = Decimal(str(d['price'])) * Decimal(str(d['quantity']))
+                        buy_cost = avg_buy_price_ex_fee * Decimal(str(d['quantity']))
+                        gross_profit = gross_sell_amount - buy_cost
+                        net_profit = (gross_sell_amount - Decimal(str(d['transaction_fee']))) - buy_cost
+                        profit_loss = gross_profit  # 兼容旧字段：total_profit_loss 代表毛利
+                        profit_loss_pct = (gross_profit / buy_cost * 100) if buy_cost > 0 else Decimal('0')
+                        gross_profit_pct = profit_loss_pct
+                        net_profit_pct = (net_profit / buy_cost * 100) if buy_cost > 0 else Decimal('0')
+                        total_profit_loss += gross_profit
                         cursor.execute(
-                            '''UPDATE trade_details SET profit_loss = ?, profit_loss_pct = ? WHERE id = ?''',
-                            (float(profit_loss), float(profit_loss_pct), d['id'])
+                            '''UPDATE trade_details SET profit_loss = ?, profit_loss_pct = ?,
+                               gross_profit = ?, gross_profit_pct = ?, net_profit = ?, net_profit_pct = ?
+                               WHERE id = ?''',
+                            (float(profit_loss), float(profit_loss_pct),
+                             float(gross_profit), float(gross_profit_pct), float(net_profit), float(net_profit_pct), d['id'])
                         )
 
-                total_profit_loss_pct = (total_profit_loss / total_buy_amount * 100) if total_buy_amount > 0 else Decimal('0')
+                # 汇总毛利/净利
+                cursor.execute("""
+                    SELECT COALESCE(SUM(CASE WHEN transaction_type='sell' THEN price*quantity END),0) AS gross_sell,
+                           COALESCE(SUM(CASE WHEN transaction_type='sell' THEN transaction_fee END),0) AS sell_fees
+                    FROM trade_details WHERE trade_id = ? AND is_deleted = 0
+                """, (trade_id,))
+                sums = cursor.fetchone()
+                gross_sell_total = Decimal(str(sums['gross_sell'])) if sums else Decimal('0')
+                sell_fees_total = Decimal(str(sums['sell_fees'])) if sums else Decimal('0')
+                total_gross_profit = total_profit_loss  # 兼容：旧字段等于毛利
+                total_net_profit = total_gross_profit - sell_fees_total
+                total_profit_loss_pct = (total_gross_profit / gross_buy_total * 100) if gross_buy_total > 0 else Decimal('0')
+                total_net_profit_pct = (total_net_profit / gross_buy_total * 100) if gross_buy_total > 0 else Decimal('0')
 
                 # 关闭状态与日期/持仓天数
                 status = 'closed' if remaining_quantity == 0 and total_sell_quantity > 0 else 'open'
@@ -452,12 +540,16 @@ class TradingService:
                 cursor.execute(
                     '''UPDATE trades SET total_buy_amount = ?, total_buy_quantity = ?,
                        total_sell_amount = ?, total_sell_quantity = ?, remaining_quantity = ?,
-                       total_profit_loss = ?, total_profit_loss_pct = ?, status = ?, close_date = ?, holding_days = ?,
+                       total_profit_loss = ?, total_profit_loss_pct = ?,
+                       total_gross_profit = ?, total_net_profit = ?, total_net_profit_pct = ?,
+                       status = ?, close_date = ?, holding_days = ?,
                        updated_at = CURRENT_TIMESTAMP WHERE id = ?''',
                     (
                         float(total_buy_amount), total_buy_quantity,
                         float(total_sell_amount), total_sell_quantity, remaining_quantity,
-                        float(total_profit_loss), float(total_profit_loss_pct), status, close_date, holding_days, trade_id
+                        float(total_gross_profit), float(total_profit_loss_pct),
+                        float(total_gross_profit), float(total_net_profit), float(total_net_profit_pct),
+                        status, close_date, holding_days, trade_id
                     )
                 )
 

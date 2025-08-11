@@ -100,6 +100,9 @@ mirror/
 - 支持事务操作
 - 软删除机制
 - 审计日志记录
+- 盈利字段口径：
+  - 明细：`gross_profit`/`net_profit` 以及对应比例；毛利按不含费买入均价计算，净利=毛利−卖出手续费
+  - 主表：`total_gross_profit`/`total_net_profit` 及净利率；旧字段 `total_profit_loss` 继续代表毛利（兼容）
 
 ## 模块间依赖关系
 

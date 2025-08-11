@@ -287,12 +287,12 @@ class TestTradingTracker(unittest.TestCase):
         trade = next((t for t in trades if t['id'] == trade_id), None)
         self.assertEqual(trade['status'], 'closed')
 
-        # 预期盈亏：卖出价25*500-手续费12.5 - 买入成本20*500 = 12500-12.5-10000 = 2477.5
-        expected_profit = 2477.5  # 实际计算值
+        # 预期盈亏（不含手续费）：(卖出价 - 买入价) * 份额 = (25 - 20) * 500 = 2500
+        expected_profit = 2500.0
         self.assertEqual(trade['total_profit_loss'], expected_profit)
 
         # 验证盈亏比例
-        expected_ratio = (Decimal(str(expected_profit)) / Decimal('10000')) * 100  # 投入10000元
+        expected_ratio = (Decimal(str(expected_profit)) / Decimal('10000')) * 100  # 以买入金额（不含手续费）为分母
         self.assertAlmostEqual(float(trade['total_profit_loss_pct']), float(expected_ratio), places=1)
 
     def test_partial_sell_transaction(self):

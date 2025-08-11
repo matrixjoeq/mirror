@@ -153,11 +153,20 @@ class DatabaseService:
             self._add_column_if_not_exists(cursor, 'trades', 'delete_date', 'TIMESTAMP')
             self._add_column_if_not_exists(cursor, 'trades', 'delete_reason', 'TEXT')
             self._add_column_if_not_exists(cursor, 'trades', 'operator_note', 'TEXT')
+            # 盈利细分统计（毛利/净利）
+            self._add_column_if_not_exists(cursor, 'trades', 'total_gross_profit', 'DECIMAL(15,3) DEFAULT 0')
+            self._add_column_if_not_exists(cursor, 'trades', 'total_net_profit', 'DECIMAL(15,3) DEFAULT 0')
+            self._add_column_if_not_exists(cursor, 'trades', 'total_net_profit_pct', 'DECIMAL(8,4) DEFAULT 0')
             
             self._add_column_if_not_exists(cursor, 'trade_details', 'is_deleted', 'INTEGER DEFAULT 0')
             self._add_column_if_not_exists(cursor, 'trade_details', 'delete_date', 'TIMESTAMP')
             self._add_column_if_not_exists(cursor, 'trade_details', 'delete_reason', 'TEXT')
             self._add_column_if_not_exists(cursor, 'trade_details', 'operator_note', 'TEXT')
+            # 明细级毛利/净利
+            self._add_column_if_not_exists(cursor, 'trade_details', 'gross_profit', 'DECIMAL(15,3) DEFAULT 0')
+            self._add_column_if_not_exists(cursor, 'trade_details', 'gross_profit_pct', 'DECIMAL(8,4) DEFAULT 0')
+            self._add_column_if_not_exists(cursor, 'trade_details', 'net_profit', 'DECIMAL(15,3) DEFAULT 0')
+            self._add_column_if_not_exists(cursor, 'trade_details', 'net_profit_pct', 'DECIMAL(8,4) DEFAULT 0')
             
         except sqlite3.OperationalError as e:
             print(f"数据库迁移警告: {e}")

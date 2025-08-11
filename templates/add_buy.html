@@ -269,15 +269,20 @@ document.addEventListener('DOMContentLoaded', function() {
         if (lookupTimer) clearTimeout(lookupTimer);
         lookupTimer = setTimeout(async () => {
             const code = this.value.trim();
-            if (!code) return;
+            if (!code) {
+                // 代码被清空时，同步清空名称
+                symbolNameInput.value = '';
+                return;
+            }
             try {
                 const resp = await fetch(`/api/symbol_lookup?symbol_code=${encodeURIComponent(code)}`);
                 const data = await resp.json();
                 if (data && data.success && data.found) {
-                    // 仅当名称为空或与返回值不同且用户未手动修改时回填
-                    if (!symbolNameInput.value || symbolNameInput.value.trim() === '') {
-                        symbolNameInput.value = data.data.symbol_name;
-                    }
+                    // 若查到数据库中已有对应标的，则强制同步为数据库中的名称
+                    symbolNameInput.value = data.data.symbol_name || '';
+                } else {
+                    // 未查到时置空，交由用户填写
+                    symbolNameInput.value = '';
                 }
             } catch (e) {
                 // 静默失败，不打扰用户

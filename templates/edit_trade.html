@@ -268,6 +268,36 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+// 交易基本信息中的标的代码与名称联动（若存在）
+document.addEventListener('DOMContentLoaded', function() {
+    const codeInput = document.getElementById('symbol_code');
+    const nameInput = document.getElementById('symbol_name');
+    if (!codeInput || !nameInput) return;
+    let timer = null;
+    codeInput.addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(async () => {
+            const code = this.value.trim();
+            if (!code) {
+                nameInput.value = '';
+                return;
+            }
+            try {
+                const resp = await fetch(`/api/symbol_lookup?symbol_code=${encodeURIComponent(code)}`);
+                const data = await resp.json();
+                if (data && data.success && data.found) {
+                    nameInput.value = data.data.symbol_name || '';
+                } else {
+                    nameInput.value = '';
+                }
+            } catch(e) {
+                console.warn('symbol lookup failed', e);
+            }
+        }, 300);
+    });
+});
+
 // 实时计算金额
 function updateAmount(detailId) {
     const priceInput = document.querySelector(`input[name="detail_${detailId}_price"]`);

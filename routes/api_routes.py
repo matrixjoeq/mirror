@@ -7,7 +7,8 @@ API路由
 from flask import Blueprint, jsonify, request, current_app
 
 from services import StrategyService, AnalysisService
-from utils.decorators import handle_errors, require_json
+from services.trading_service import TradingService
+from utils.decorators import handle_errors
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -63,7 +64,7 @@ def symbol_lookup():
         fetch_one=True,
     )
 
-    if row and row.get('symbol_name'):
+    if row:
         return jsonify({
             'success': True,
             'found': True,
@@ -74,6 +75,91 @@ def symbol_lookup():
         })
 
     return jsonify({'success': True, 'found': False, 'data': {'symbol_code': symbol_code.upper()}})
+
+
+@api_bp.route('/trade_detail/<int:detail_id>')
+@handle_errors
+def get_trade_detail(detail_id: int):
+    """获取单条交易明细，便于前端弹窗回填。"""
+    db = current_app.db_service
+    row = db.execute_query(
+        '''
+        SELECT d.*, t.symbol_code, t.symbol_name
+        FROM trade_details d
+        LEFT JOIN trades t ON d.trade_id = t.id
+        WHERE d.id = ?
+        ''',
+        (detail_id,),
+        fetch_one=True,
+    )
+    if not row:
+        return jsonify({'success': False, 'message': f'明细ID {detail_id} 不存在'}), 404
+    return jsonify({'success': True, 'detail': dict(row)})
+
+
+@api_bp.route('/quick_sell', methods=['POST'])
+@handle_errors
+def quick_sell():
+    """快捷卖出接口。
+
+    要求参数（form 或 json）：
+    - trade_id: 交易ID（必填）
+    - price: 卖出价格（必填）
+    - transaction_date: 卖出日期（必填）
+    - quantity: 卖出数量（必填，正整数）
+    - transaction_fee: 交易费用（可选，默认0）
+    - sell_reason: 卖出理由（可选）
+    只会影响对应 trade_id 的那条交易。
+    """
+    trading_service = TradingService(current_app.db_service)
+
+    form = request.form if not request.is_json else request.json
+
+    trade_id = form.get('trade_id')
+    price = form.get('price')
+    transaction_date = form.get('transaction_date')
+    quantity = form.get('quantity')
+    detail_id = form.get('detail_id')
+    transaction_fee = form.get('transaction_fee', 0)
+    sell_reason = form.get('sell_reason', '')
+
+    # 基本校验
+    if not trade_id or not price or not transaction_date:
+        return jsonify({'success': False, 'message': 'trade_id、price、transaction_date 为必填'}), 400
+    try:
+        trade_id = int(trade_id)
+    except ValueError:
+        return jsonify({'success': False, 'message': 'trade_id 非法'}), 400
+
+    try:
+        quantity = int(quantity) if quantity is not None else 0
+    except ValueError:
+        return jsonify({'success': False, 'message': 'quantity 必须为正整数'}), 400
+
+    if quantity <= 0:
+        return jsonify({'success': False, 'message': 'quantity 必须大于 0'}), 400
+
+    # 若提供 detail_id，校验本次卖出份额不超过该买入明细的FIFO剩余
+    if detail_id:
+        try:
+            did = int(detail_id)
+        except ValueError:
+            return jsonify({'success': False, 'message': 'detail_id 非法'}), 400
+        remaining_map = trading_service.compute_buy_detail_remaining_map(trade_id)
+        remaining_for_detail = int(remaining_map.get(did, 0))
+        if quantity > remaining_for_detail:
+            return jsonify({'success': False, 'message': '卖出份额超过该笔买入的可卖剩余'}), 400
+
+    ok, msg = trading_service.add_sell_transaction(
+        trade_id=trade_id,
+        price=price,
+        quantity=quantity,
+        transaction_date=transaction_date,
+        transaction_fee=transaction_fee,
+        sell_reason=sell_reason,
+    )
+
+    return jsonify({'success': ok, 'message': msg})
 
 
 @api_bp.route('/tag/create', methods=['POST'])

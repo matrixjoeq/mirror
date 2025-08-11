@@ -241,12 +241,13 @@ class AnalysisService:
                 'details': []
             }
         
-        # 统计变量
+        # 统计变量（新增毛利/净利统计）
         total_trades = 0  # 仅统计已平仓交易数
         winning_trades = 0
         losing_trades = 0
         total_investment = Decimal('0')
-        total_return = Decimal('0')
+        total_return = Decimal('0')  # 兼容：代表总毛利
+        total_net_return = Decimal('0')
         total_holding_days = 0
         total_fees = Decimal('0')
         sum_profit = Decimal('0')
@@ -263,23 +264,57 @@ class AnalysisService:
                 FROM trade_details
                 WHERE trade_id = ? AND is_deleted = 0
             '''
-            fees_result = self.db.execute_query(fees_query, (trade['id'],), fetch_one=True)
+            fees_result = self.db.execute_query(fees_query, (trade_dict['id'],), fetch_one=True)
             trade_fees = fees_result['total_fees'] if fees_result else 0
             total_fees += Decimal(str(trade_fees))
             
             # 只统计已平仓的交易
-            if trade['status'] == 'closed':
+            if trade_dict['status'] == 'closed':
                 total_trades += 1
-                total_investment += Decimal(str(trade['total_buy_amount']))
-                total_return += Decimal(str(trade['total_profit_loss']))
-                total_holding_days += trade['holding_days']
+                total_investment += Decimal(str(trade_dict['total_buy_amount']))
+                # 计算该交易的毛利/净利（基于明细，避免依赖主表聚合列）
+                buys = self.db.execute_query(
+                    '''SELECT COALESCE(SUM(price*quantity),0) AS buy_gross, COALESCE(SUM(quantity),0) AS buy_qty
+                       FROM trade_details WHERE trade_id=? AND transaction_type='buy' AND is_deleted=0''',
+                    (trade_dict['id'],), fetch_one=True
+                )
+                sells = self.db.execute_query(
+                    '''SELECT COALESCE(SUM(price*quantity),0) AS sell_gross, COALESCE(SUM(quantity),0) AS sell_qty,
+                              COALESCE(SUM(transaction_fee),0) AS sell_fees
+                       FROM trade_details WHERE trade_id=? AND transaction_type='sell' AND is_deleted=0''',
+                    (trade_dict['id'],), fetch_one=True
+                )
+                def _get_dec(row, key):
+                    try:
+                        return Decimal(str(row[key]))
+                    except Exception:
+                        return Decimal('0')
+                buy_gross = _get_dec(buys, 'buy_gross') if buys else Decimal('0')
+                buy_qty = _get_dec(buys, 'buy_qty') if buys else Decimal('0')
+                sell_gross = _get_dec(sells, 'sell_gross') if sells else Decimal('0')
+                sell_qty = _get_dec(sells, 'sell_qty') if sells else Decimal('0')
+                sell_fees = _get_dec(sells, 'sell_fees') if sells else Decimal('0')
+                avg_buy_ex = (buy_gross / buy_qty) if buy_qty > 0 else Decimal('0')
+                trade_gross_profit = sell_gross - avg_buy_ex * sell_qty
+                trade_net_profit = trade_gross_profit - sell_fees
+                # 兼容：当无法从明细获得有效数据（如单元测试使用Mock DB），回退使用主表字段 total_profit_loss
+                if (buy_qty == 0 and sell_qty == 0) and 'total_profit_loss' in trade_dict:
+                    try:
+                        trade_gross_profit = Decimal(str(trade_dict['total_profit_loss']))
+                        trade_net_profit = trade_gross_profit  # 无法区分费用时回退为相同
+                    except Exception:
+                        pass
+
+                total_return += trade_gross_profit
+                total_net_return += trade_net_profit
+                total_holding_days += trade_dict['holding_days']
                 
-                if trade['total_profit_loss'] > 0:
+                if trade_gross_profit > 0:
                     winning_trades += 1
-                    sum_profit += Decimal(str(trade['total_profit_loss']))
-                elif trade['total_profit_loss'] < 0:
+                    sum_profit += trade_gross_profit
+                elif trade_gross_profit < 0:
                     losing_trades += 1
-                    sum_loss_abs += abs(Decimal(str(trade['total_profit_loss'])))
+                    sum_loss_abs += abs(trade_gross_profit)
             
             details.append(trade_dict)
         
@@ -287,6 +322,8 @@ class AnalysisService:
         win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
         total_return_rate = (total_return / total_investment * 100) if total_investment > 0 else 0
         avg_return_per_trade = total_return / total_trades if total_trades > 0 else 0
+        total_net_return_rate = (total_net_return / total_investment * 100) if total_investment > 0 else 0
+        avg_net_return_per_trade = total_net_return / total_trades if total_trades > 0 else 0
         avg_holding_days = total_holding_days / total_trades if total_trades > 0 else 0
         # 盈亏比（Profit Factor）：总盈利/总亏损绝对值
         if total_trades > 0:
@@ -310,7 +347,12 @@ class AnalysisService:
                 'avg_return_per_trade': float(avg_return_per_trade),
                 'avg_holding_days': float(avg_holding_days),
                 'total_fees': float(total_fees),
-                'avg_profit_loss_ratio': (profit_loss_ratio if profit_loss_ratio != float('inf') else 9999.0)
+                'avg_profit_loss_ratio': (profit_loss_ratio if profit_loss_ratio != float('inf') else 9999.0),
+                # 新增毛利/净利统计
+                'total_gross_return': float(total_return),
+                'total_net_return': float(total_net_return),
+                'total_net_return_rate': float(total_net_return_rate),
+                'avg_net_return_per_trade': float(avg_net_return_per_trade),
             },
             'details': details
         }

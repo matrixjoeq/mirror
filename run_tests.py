@@ -63,11 +63,13 @@ def print_summary(suite_name, result):
 
 def _run_with_coverage(module_patterns, cov_report_dir, min_coverage, source_modules: str):
     """使用coverage运行指定模块模式的测试，并校验最低覆盖率。"""
+    env = os.environ.copy()
+    env['FLASK_ENV'] = 'testing'
     cmd = [
         sys.executable, '-m', 'coverage', 'run', '--rcfile', os.path.join(project_root, '.coveragerc'), '--branch', '--source', source_modules,
         '-m', 'unittest', '-v'
     ] + module_patterns
-    subprocess.check_call(cmd)
+    subprocess.check_call(cmd, env=env)
 
     # 生成报告
     subprocess.check_call([sys.executable, '-m', 'coverage', 'xml', '--rcfile', os.path.join(project_root, '.coveragerc'), '-o', os.path.join(cov_report_dir, 'coverage.xml')])
@@ -85,11 +87,13 @@ def _run_with_coverage(module_patterns, cov_report_dir, min_coverage, source_mod
             raise AssertionError(f"覆盖率 {total_percent:.1f}% 低于阈值 {min_coverage:.1f}%")
 def _run_discover_with_coverage(start_dir: str, cov_report_dir: str, min_coverage: float, source_modules: str, pattern: str = 'test_*.py'):
     """基于 unittest discover 运行测试，便于完整收集包内所有测试。"""
+    env = os.environ.copy()
+    env['FLASK_ENV'] = 'testing'
     cmd = [
         sys.executable, '-m', 'coverage', 'run', '--rcfile', os.path.join(project_root, '.coveragerc'), '--branch', '--source', source_modules,
         '-m', 'unittest', 'discover', '-s', start_dir, '-p', pattern
     ]
-    subprocess.check_call(cmd)
+    subprocess.check_call(cmd, env=env)
 
     # 生成报告
     os.makedirs(cov_report_dir, exist_ok=True)

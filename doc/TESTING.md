@@ -51,24 +51,24 @@
 
 ```bash
 # 运行所有测试
-python run_tests.py
+python3 run_tests.py
 
 # 或者运行特定类型的测试
-python run_tests.py unit        # 单元测试
-python run_tests.py functional  # 功能测试
-python run_tests.py integration # 集成测试
+python3 run_tests.py unit        # 单元测试
+python3 run_tests.py functional  # 功能测试
+python3 run_tests.py integration # 集成测试
 ```
 
-### 环境准备
+### 环境准备（测试隔离）
 
 1. **激活虚拟环境**（推荐）：
    ```bash
    source venv/bin/activate
    ```
 
-2. **安装依赖**：
+2. **安装依赖**（运行脚本将强制 `FLASK_ENV=testing`，并在应用工厂中为每次运行创建独立临时DB，杜绝污染产品库）：
    ```bash
-   pip install -r requirements.txt
+    python3 -m pip install -r requirements.txt
    ```
 
 ### 详细运行方式
@@ -77,35 +77,35 @@ python run_tests.py integration # 集成测试
 
 ```bash
 # 查看帮助
-python run_tests.py help
+    python3 run_tests.py help
 
 # 运行所有测试（默认）
-python run_tests.py all
+    python3 run_tests.py all
 
 # 运行单元测试
-python run_tests.py unit
+    python3 run_tests.py unit
 
 # 运行功能测试
-python run_tests.py functional
+    python3 run_tests.py functional
 
 # 运行集成测试
-python run_tests.py integration
+    python3 run_tests.py integration
 ```
 
 #### 2. 直接使用unittest
 
 ```bash
 # 运行单个测试文件
-python -m unittest tests.unit.test_trading_tracker -v
+python3 -m unittest tests.unit.test_trading_tracker -v
 
 # 运行特定测试类
-python -m unittest tests.unit.test_trading_tracker.TestTradingTracker -v
+python3 -m unittest tests.unit.test_trading_tracker.TestTradingTracker -v
 
 # 运行特定测试方法
-python -m unittest tests.unit.test_trading_tracker.TestTradingTracker.test_create_strategy -v
+python3 -m unittest tests.unit.test_trading_tracker.TestTradingTracker.test_create_strategy -v
 
 # 发现并运行所有测试
-python -m unittest discover tests/ -v
+python3 -m unittest discover tests/ -v
 ```
 
 #### 3. 在项目根目录运行
@@ -113,9 +113,9 @@ python -m unittest discover tests/ -v
 ```bash
 # 从项目根目录运行
 cd /path/to/mirror
-python tests/unit/test_trading_tracker.py
-python tests/functional/test_trading_workflows.py
-python tests/integration/test_system_integration.py
+python3 tests/unit/test_trading_tracker.py
+python3 tests/functional/test_trading_workflows.py
+python3 tests/integration/test_system_integration.py
 ```
 
 ## 📊 测试覆盖范围（阶段性指标）
@@ -228,12 +228,12 @@ PermissionError: [Errno 13] Permission denied
 
 1. **增加详细输出**:
    ```bash
-   python run_tests.py unit -v
+   python3 run_tests.py unit -v
    ```
 
 2. **单独运行失败的测试**:
    ```bash
-   python -m unittest tests.unit.test_trading_tracker.TestTradingTracker.test_specific_method -v
+   python3 -m unittest tests.unit.test_trading_tracker.TestTradingTracker.test_specific_method -v
    ```
 
 3. **查看测试数据**:

@@ -142,7 +142,24 @@ def add_sell(trade_id):
             if not trade:
                 return redirect(url_for('trading.trades'))
             
-            return render_template('add_sell.html', trade=trade)
+            # 计算不含费用的平均买入价供前端盈亏预览
+            from sqlite3 import Row
+            db = current_app.db_service
+            row = db.execute_query(
+                """
+                SELECT COALESCE(SUM(price * quantity), 0) AS gross_buy,
+                       COALESCE(SUM(quantity), 0) AS qty
+                FROM trade_details
+                WHERE trade_id = ? AND transaction_type = 'buy' AND is_deleted = 0
+                """,
+                (trade_id,),
+                fetch_one=True,
+            )
+            gross_buy = row['gross_buy'] if row else 0
+            qty = row['qty'] if row else 0
+            avg_buy_price_ex_fee = float(gross_buy) / float(qty) if qty else 0.0
+
+            return render_template('add_sell.html', trade=trade, avg_buy_price_ex_fee=avg_buy_price_ex_fee)
             
         except Exception as e:
             current_app.logger.error(f"卖出页面加载失败: {str(e)}")
@@ -201,10 +218,52 @@ def trade_details(trade_id):
         details = trading_service.get_trade_details(trade_id)
         modifications = trading_service.get_trade_modifications(trade_id)
         
+        # 计算每个买入明细的剩余可卖份额（FIFO视角）
+        remaining_map = trading_service.compute_buy_detail_remaining_map(trade_id)
+        # 将剩余份额与可卖状态合并到 details 中，便于模板禁用按钮
+        details_with_remaining = []
+        for d in details:
+            if d['transaction_type'] == 'buy':
+                rem = int(remaining_map.get(d['id'], d['quantity']))
+                d['remaining_for_quick'] = rem
+                d['can_quick_sell'] = (trade['status'] == 'open' and trade['remaining_quantity'] > 0 and rem > 0)
+            else:
+                d['remaining_for_quick'] = 0
+                d['can_quick_sell'] = False
+            details_with_remaining.append(d)
+
+        # 概览统计：买入/卖出总成交额与费用（均不含/单列费用），以及毛利/净利
+        buy_gross = sum(d['price'] * d['quantity'] for d in details if d['transaction_type'] == 'buy')
+        buy_qty = sum(d['quantity'] for d in details if d['transaction_type'] == 'buy')
+        buy_fees = sum(float(d.get('transaction_fee', 0) or 0) for d in details if d['transaction_type'] == 'buy')
+        sell_gross = sum(d['price'] * d['quantity'] for d in details if d['transaction_type'] == 'sell')
+        sell_qty = sum(d['quantity'] for d in details if d['transaction_type'] == 'sell')
+        sell_fees = sum(float(d.get('transaction_fee', 0) or 0) for d in details if d['transaction_type'] == 'sell')
+
+        gross_profit = sell_gross - buy_gross
+        gross_profit_rate = (gross_profit / buy_gross * 100.0) if buy_gross > 0 else 0.0
+        net_profit = gross_profit - buy_fees - sell_fees
+        net_profit_rate = (net_profit / buy_gross * 100.0) if buy_gross > 0 else 0.0
+
+        overview_metrics = {
+            'buy_gross': float(buy_gross),
+            'buy_qty': int(buy_qty),
+            'buy_fees': float(buy_fees),
+            'avg_buy_ex': (float(buy_gross) / buy_qty) if buy_qty else 0.0,
+            'sell_gross': float(sell_gross),
+            'sell_qty': int(sell_qty),
+            'sell_fees': float(sell_fees),
+            'avg_sell_ex': (float(sell_gross) / sell_qty) if sell_qty else 0.0,
+            'gross_profit': float(gross_profit),
+            'gross_profit_rate': float(gross_profit_rate),
+            'net_profit': float(net_profit),
+            'net_profit_rate': float(net_profit_rate),
+        }
         return render_template('trade_details.html',
                              trade=trade,
-                             details=details,
-                             modifications=modifications)
+                             details=details_with_remaining,
+                             modifications=modifications,
+                             overview=overview_metrics)
         
     except Exception as e:
         current_app.logger.error(f"交易详情加载失败: {str(e)}")

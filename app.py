@@ -5,6 +5,8 @@
 """
 
 import os
+import tempfile
+import time
 from flask import Flask
 
 from config import config
@@ -31,7 +33,12 @@ def create_app(config_name=None):
 
     # 初始化并挂载服务到 app（供路由通过 current_app 使用）
     from services import DatabaseService, TradingService, StrategyService, AnalysisService
-    app.db_service = DatabaseService()
+    # 在测试环境下为每个 app 实例创建独立的临时数据库文件，避免污染产品库
+    db_path = None
+    if config_name == 'testing':
+        db_path = os.path.join(tempfile.gettempdir(), f"mirror_test_{os.getpid()}_{int(time.time()*1000)}.db")
+        app.config['DB_PATH'] = db_path
+    app.db_service = DatabaseService(db_path)
     app.trading_service = TradingService(app.db_service)
     app.strategy_service = StrategyService(app.db_service)
     app.analysis_service = AnalysisService(app.db_service)
