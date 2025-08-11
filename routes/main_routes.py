@@ -20,7 +20,7 @@ def index():
         strategy_service = StrategyService(current_app.db_service)
         analysis_service = AnalysisService(current_app.db_service)
         
-        # 获取统计数据
+        # 获取统计数据（统一接口）
         all_trades = trading_service.get_all_trades()
         strategies_list = strategy_service.get_all_strategies()
         
@@ -36,8 +36,8 @@ def index():
         # 计算总体表现
         overall_performance = analysis_service.calculate_strategy_score()
         
-        # 获取最近的交易（按更新时间/创建时间降序取前10）
-        recent_trades = sorted(all_trades, key=lambda t: (t.get('updated_at'), t.get('created_at')), reverse=True)[:10] if all_trades else []
+        # 获取最近的交易（按开仓日期降序取前10）
+        recent_trades = trading_service.get_all_trades(order_by='t.open_date DESC', limit=10)
         
         # 获取查询参数
         selected_strategy = request.args.get('strategy', 'all')
@@ -47,14 +47,28 @@ def index():
         else:
             filtered_trades = all_trades
         
+        # 计算总净利润与总净利率（与服务层统一口径）
+        total_net_profit = sum([float(t.get('total_net_profit', 0) or 0) for t in filtered_trades])
+        # 分母：各笔交易已卖出部分的不含费买入成本之和
+        total_net_profit_denom = 0.0
+        for t in filtered_trades:
+            try:
+                ov = trading_service.get_trade_overview_metrics(t['id'])
+                # buy_cost_for_sold = avg_buy_ex * sell_qty
+                total_net_profit_denom += float(ov.get('avg_buy_ex', 0.0)) * float(ov.get('sell_qty', 0) or 0)
+            except Exception:
+                continue
+        total_net_profit_pct = (total_net_profit / total_net_profit_denom * 100.0) if total_net_profit_denom > 0 else 0.0
+
         # 构建stats对象
-        # 汇总概览数据
         stats = {
             'selected_strategy': selected_strategy,
             'total_trades': len(filtered_trades),
             'open_trades': len([t for t in filtered_trades if t['status'] == 'open']),
             'closed_trades': len([t for t in filtered_trades if t['status'] == 'closed']),
             'total_profit_loss': float(sum([t.get('total_profit_loss', 0) or 0 for t in filtered_trades])),
+            'total_net_profit': float(total_net_profit),
+            'total_net_profit_pct': float(total_net_profit_pct),
             'recent_trades': recent_trades,
             'strategy_stats': {}
         }

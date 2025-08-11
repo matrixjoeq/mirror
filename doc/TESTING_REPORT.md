@@ -2,7 +2,7 @@
 
 ## 📊 测试总览
 
-**测试更新日期**: 2025-08-11  
+**测试更新日期**: 2025-08-11（夜间回归）  
 **测试总数**: 90+（单元/功能/集成/性能）  
 **通过率**: 单元/功能/集成 100% ✅；性能用例 100% ✅  
 **覆盖概述**: 业务逻辑、端到端流、性能基线
@@ -47,7 +47,7 @@
 | test_realistic_trading_scenario | 真实交易场景模拟 | ✅ 通过 |
 | test_soft_delete_recovery_workflow | 软删除和恢复完整工作流 | ✅ 通过 |
 | test_strategy_comparison_workflow | 策略对比分析工作流 | ✅ 通过 |
-| test_trade_modification_workflow | 交易修改完整工作流 | ⚠️ 跳过 (功能待实现) |
+| test_trade_modification_workflow | 交易修改完整工作流 | ✅ 通过 |
 
 ### 集成测试（通过）
 

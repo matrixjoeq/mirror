@@ -232,33 +232,8 @@ def trade_details(trade_id):
                 d['can_quick_sell'] = False
             details_with_remaining.append(d)
 
-        # 概览统计：买入/卖出总成交额与费用（均不含/单列费用），以及毛利/净利
-        buy_gross = sum(d['price'] * d['quantity'] for d in details if d['transaction_type'] == 'buy')
-        buy_qty = sum(d['quantity'] for d in details if d['transaction_type'] == 'buy')
-        buy_fees = sum(float(d.get('transaction_fee', 0) or 0) for d in details if d['transaction_type'] == 'buy')
-        sell_gross = sum(d['price'] * d['quantity'] for d in details if d['transaction_type'] == 'sell')
-        sell_qty = sum(d['quantity'] for d in details if d['transaction_type'] == 'sell')
-        sell_fees = sum(float(d.get('transaction_fee', 0) or 0) for d in details if d['transaction_type'] == 'sell')
-
-        gross_profit = sell_gross - buy_gross
-        gross_profit_rate = (gross_profit / buy_gross * 100.0) if buy_gross > 0 else 0.0
-        net_profit = gross_profit - buy_fees - sell_fees
-        net_profit_rate = (net_profit / buy_gross * 100.0) if buy_gross > 0 else 0.0
-
-        overview_metrics = {
-            'buy_gross': float(buy_gross),
-            'buy_qty': int(buy_qty),
-            'buy_fees': float(buy_fees),
-            'avg_buy_ex': (float(buy_gross) / buy_qty) if buy_qty else 0.0,
-            'sell_gross': float(sell_gross),
-            'sell_qty': int(sell_qty),
-            'sell_fees': float(sell_fees),
-            'avg_sell_ex': (float(sell_gross) / sell_qty) if sell_qty else 0.0,
-            'gross_profit': float(gross_profit),
-            'gross_profit_rate': float(gross_profit_rate),
-            'net_profit': float(net_profit),
-            'net_profit_rate': float(net_profit_rate),
-        }
+        # 使用统一服务接口，保证与列表/首页一致
+        overview_metrics = trading_service.get_trade_overview_metrics(trade_id)
         return render_template('trade_details.html',
                              trade=trade,
                              details=details_with_remaining,

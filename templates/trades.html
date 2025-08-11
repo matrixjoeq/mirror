@@ -83,9 +83,16 @@
                                 <th>平仓日期</th>
                                 <th>状态</th>
                                 <th>持仓/剩余数量</th>
-                                <th>总投入</th>
-                                <th>总盈亏</th>
-                                <th>盈亏比例</th>
+                                <th>总买入金额</th>
+                                <th>总卖出金额</th>
+                                <th>总净利润</th>
+                                <th>总净利率</th>
+                                <th>总买入费用</th>
+                                <th>总卖出费用</th>
+                                <th>总毛利润</th>
+                                <th>总毛利率</th>
+                                <th>总交易费用</th>
+                                <th>总费用占比</th>
                                 <th>持仓天数</th>
                                 <th>操作</th>
                             </tr>
@@ -130,11 +137,32 @@
                                         {% endif %}
                                     </td>
                                     <td>¥{{ "%.3f"|format(trade.total_buy_amount) }}</td>
+                                    <td>¥{{ "%.3f"|format(trade.total_sell_amount) }}</td>
+                                    <td>
+                                        {% if trade.total_net_profit > 0 %}
+                                            <span class="text-danger fw-bold">+¥{{ "%.3f"|format(trade.total_net_profit) }}</span>
+                                        {% elif trade.total_net_profit < 0 %}
+                                            <span class="text-success fw-bold">-¥{{ "%.3f"|format((trade.total_net_profit | abs)) }}</span>
+                                        {% else %}
+                                            <span class="text-muted">¥0.000</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if trade.total_net_profit_pct > 0 %}
+                                            <span class="text-danger fw-bold">+{{ "%.2f"|format(trade.total_net_profit_pct) }}%</span>
+                                        {% elif trade.total_net_profit_pct < 0 %}
+                                            <span class="text-success fw-bold">{{ "%.2f"|format(trade.total_net_profit_pct) }}%</span>
+                                        {% else %}
+                                            <span class="text-muted">0.00%</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>¥{{ "%.3f"|format(trade.total_buy_fees) }}</td>
+                                    <td>¥{{ "%.3f"|format(trade.total_sell_fees) }}</td>
                                     <td>
                                         {% if trade.total_profit_loss > 0 %}
                                             <span class="text-danger fw-bold">+¥{{ "%.3f"|format(trade.total_profit_loss) }}</span>
                                         {% elif trade.total_profit_loss < 0 %}
-                                            <span class="text-success fw-bold">¥{{ "%.3f"|format(trade.total_profit_loss) }}</span>
+                                            <span class="text-success fw-bold">-¥{{ "%.3f"|format((trade.total_profit_loss | abs)) }}</span>
                                         {% else %}
                                             <span class="text-muted">¥0.000</span>
                                         {% endif %}
@@ -148,6 +176,8 @@
                                             <span class="text-muted">0.00%</span>
                                         {% endif %}
                                     </td>
+                                    <td>¥{{ "%.3f"|format(trade.total_fees) }}</td>
+                                    <td>{{ "%.2f"|format(trade.total_fee_ratio_pct) }}%</td>
                                     <td>
                                         {% if trade.holding_days %}
                                             {{ trade.holding_days }}天
@@ -173,7 +203,7 @@
                                 {% endfor %}
                             {% else %}
                                                             <tr>
-                                <td colspan="13" class="text-center text-muted py-5">
+                                <td colspan="21" class="text-center text-muted py-5">
                                     <i class="bi bi-inbox" style="font-size: 3rem;"></i><br>
                                     暂无交易记录<br>
                                     <div class="dropdown mt-2">
@@ -245,7 +275,7 @@
                         {% if total_profit_loss > 0 %}
                             <h5 class="text-danger">+¥{{ "%.3f"|format(total_profit_loss) }}</h5>
                         {% elif total_profit_loss < 0 %}
-                            <h5 class="text-success">¥{{ "%.3f"|format(total_profit_loss) }}</h5>
+                            <h5 class="text-success">-¥{{ "%.3f"|format((total_profit_loss | abs)) }}</h5>
                         {% else %}
                             <h5 class="text-muted">¥0.000</h5>
                         {% endif %}

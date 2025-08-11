@@ -75,10 +75,26 @@
                     <div class="col-md-4 mb-3">
                          <h6 class="text-muted">盈亏信息</h6>
                         <div>剩余持仓: <span class="fw-bold text-primary">{{ trade.remaining_quantity }} 股</span></div>
-                        <div>毛利润: <span class="fw-bold">¥{{ "%.3f"|format(overview.gross_profit) }}</span></div>
+                        <div>毛利润: 
+                            {% if overview.gross_profit > 0 %}
+                                <span class="fw-bold text-danger">+¥{{ "%.3f"|format(overview.gross_profit) }}</span>
+                            {% elif overview.gross_profit < 0 %}
+                                <span class="fw-bold text-success">-¥{{ "%.3f"|format((overview.gross_profit | abs)) }}</span>
+                            {% else %}
+                                <span class="fw-bold text-muted">¥0.000</span>
+                            {% endif %}
+                        </div>
                         <div>毛利率: <span class="fw-bold">{{ "%.2f"|format(overview.gross_profit_rate) }}%</span></div>
         
-                        <div>净利润: <span class="fw-bold">¥{{ "%.3f"|format(overview.net_profit) }}</span></div>
+                        <div>净利润: 
+                            {% if overview.net_profit > 0 %}
+                                <span class="fw-bold text-danger">+¥{{ "%.3f"|format(overview.net_profit) }}</span>
+                            {% elif overview.net_profit < 0 %}
+                                <span class="fw-bold text-success">-¥{{ "%.3f"|format((overview.net_profit | abs)) }}</span>
+                            {% else %}
+                                <span class="fw-bold text-muted">¥0.000</span>
+                            {% endif %}
+                        </div>
                         <div>净利率: <span class="fw-bold">{{ "%.2f"|format(overview.net_profit_rate) }}%</span></div>
                     </div>
                 </div>
@@ -149,8 +165,6 @@
                                 <th>交易费用</th>
                                 <th>交易日期</th>
                                 <th>交易理由</th>
-                                <th>盈亏金额</th>
-                                <th>盈亏比例</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
@@ -190,70 +204,7 @@
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                     <td>
-                                         {% if detail.transaction_type == 'sell' %}
-                                             <div class="small">毛利：
-                                                 {% if detail.gross_profit %}
-                                                     {% if detail.gross_profit > 0 %}
-                                                         <span class="text-danger fw-bold">+¥{{ "%.3f"|format(detail.gross_profit) }}</span>
-                                                     {% elif detail.gross_profit < 0 %}
-                                                         <span class="text-success fw-bold">¥{{ "%.3f"|format(detail.gross_profit) }}</span>
-                                                     {% else %}
-                                                         <span class="text-muted">¥0.000</span>
-                                                     {% endif %}
-                                                 {% else %}
-                                                     <span class="text-muted">¥0.000</span>
-                                                 {% endif %}
-                                             </div>
-                                             <div class="small">净利：
-                                                 {% if detail.net_profit %}
-                                                     {% if detail.net_profit > 0 %}
-                                                         <span class="text-danger fw-bold">+¥{{ "%.3f"|format(detail.net_profit) }}</span>
-                                                     {% elif detail.net_profit < 0 %}
-                                                         <span class="text-success fw-bold">¥{{ "%.3f"|format(detail.net_profit) }}</span>
-                                                     {% else %}
-                                                         <span class="text-muted">¥0.000</span>
-                                                     {% endif %}
-                                                 {% else %}
-                                                     <span class="text-muted">¥0.000</span>
-                                                 {% endif %}
-                                             </div>
-                                         {% else %}
-                                             <span class="text-muted">-</span>
-                                         {% endif %}
-                                     </td>
-                                     <td>
-                                         {% if detail.transaction_type == 'sell' %}
-                                             <div class="small">毛利：
-                                                 {% if detail.gross_profit_pct %}
-                                                     {% if detail.gross_profit_pct > 0 %}
-                                                         <span class="text-danger fw-bold">+{{ "%.2f"|format(detail.gross_profit_pct) }}%</span>
-                                                     {% elif detail.gross_profit_pct < 0 %}
-                                                         <span class="text-success fw-bold">{{ "%.2f"|format(detail.gross_profit_pct) }}%</span>
-                                                     {% else %}
-                                                         <span class="text-muted">0.00%</span>
-                                                     {% endif %}
-                                                 {% else %}
-                                                     <span class="text-muted">0.00%</span>
-                                                 {% endif %}
-                                             </div>
-                                             <div class="small">净利：
-                                                 {% if detail.net_profit_pct %}
-                                                     {% if detail.net_profit_pct > 0 %}
-                                                         <span class="text-danger fw-bold">+{{ "%.2f"|format(detail.net_profit_pct) }}%</span>
-                                                     {% elif detail.net_profit_pct < 0 %}
-                                                         <span class="text-success fw-bold">{{ "%.2f"|format(detail.net_profit_pct) }}%</span>
-                                                     {% else %}
-                                                         <span class="text-muted">0.00%</span>
-                                                     {% endif %}
-                                                 {% else %}
-                                                     <span class="text-muted">0.00%</span>
-                                                 {% endif %}
-                                             </div>
-                                         {% else %}
-                                             <span class="text-muted">-</span>
-                                         {% endif %}
-                                     </td>
+                                     
                                     <td>
                                         <div class="btn-group">
                                             {% if detail.transaction_type == 'buy' %}
@@ -263,7 +214,7 @@
                                                 </button>
                                                 {% set can_quick_sell = detail.can_quick_sell %}
                                                 <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#quickSellModal" 
-                                                        data-detail-id="{{ detail.id }}" data-trade-id="{{ trade.id }}" {% if not can_quick_sell %}disabled="disabled"{% endif %}>
+                                                        data-detail-id="{{ detail.id }}" data-trade-id="{{ trade.id }}" data-remaining="{{ detail.remaining_for_quick or 0 }}" {% if not can_quick_sell %}disabled="disabled"{% endif %}>
                                                     <i class="bi bi-dash-circle"></i> 卖出
                                                 </button>
                                             {% else %}
@@ -278,7 +229,7 @@
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="11" class="text-center text-muted">
+                                    <td colspan="9" class="text-center text-muted">
                                         暂无交易明细
                                     </td>
                                 </tr>
@@ -708,16 +659,28 @@ document.addEventListener('DOMContentLoaded', function() {
             const button = event.relatedTarget;
             const detailId = button.getAttribute('data-detail-id');
             const tradeId = button.getAttribute('data-trade-id');
-            
+
+            // 先重置表单，避免覆盖后续设置的默认值
+            const form = document.getElementById('quickSellForm');
+            form.reset();
+
             // 设置隐藏字段
             document.getElementById('quickSellDetailId').value = detailId;
             document.getElementById('quickSellTradeId').value = tradeId;
-            
-            // 设置默认日期为今天
-            document.getElementById('quickSellDate').value = new Date().toISOString().split('T')[0];
-            
-            // 重置表单
-            document.getElementById('quickSellForm').reset();
+
+            // 设置默认日期为本地当天（避免 toISOString 的时区偏移）
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            document.getElementById('quickSellDate').value = `${yyyy}-${mm}-${dd}`;
+
+            // 将本次可卖最大份额注入输入框属性用于前端校验
+            const maxRemaining = parseInt(button.getAttribute('data-remaining') || '0', 10);
+            const qtyInput = document.getElementById('quickSellQuantity');
+            qtyInput.setAttribute('max', Math.max(0, maxRemaining));
+            qtyInput.value = '';
+
             document.getElementById('confirmQuickSellBtn').disabled = true;
         });
         
@@ -757,6 +720,15 @@ document.addEventListener('DOMContentLoaded', function() {
         // 确认快捷卖出
         const confirmQuickSellBtn = document.getElementById('confirmQuickSellBtn');
         if (confirmQuickSellBtn) {
+            // 实时校验份额输入，控制确认按钮可用性
+            const qtyInput = document.getElementById('quickSellQuantity');
+            qtyInput.addEventListener('input', function() {
+                const max = parseInt(qtyInput.getAttribute('max') || '0', 10);
+                const val = parseInt(qtyInput.value || '0', 10);
+                const valid = Number.isFinite(val) && val > 0 && val <= max;
+                confirmQuickSellBtn.disabled = !valid;
+            });
+
             confirmQuickSellBtn.addEventListener('click', function() {
                 const formData = new FormData(document.getElementById('quickSellForm'));
                 
@@ -764,13 +736,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 const price = formData.get('price');
                 const transactionDate = formData.get('transaction_date');
                 const quantity = parseInt(formData.get('quantity') || '0', 10);
+                const max = parseInt(document.getElementById('quickSellQuantity').getAttribute('max') || '0', 10);
                 
                 if (!price || !transactionDate) {
                     alert('请填写卖出价格和日期');
                     return;
                 }
-                if (!quantity || quantity <= 0) {
-                    alert('请填写有效的卖出份额');
+                if (!quantity || quantity <= 0 || quantity > max) {
+                    alert(`请填写有效的卖出份额（1 - ${max}）`);
                     return;
                 }
                 

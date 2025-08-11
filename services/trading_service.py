@@ -107,12 +107,13 @@ class TradingService:
             # 计算交易金额（amount 仍记录净额：卖出收入扣除卖出费用）
             sell_amount = price * quantity - transaction_fee
 
-            # 计算不含费用的加权买入均价与盈亏（盈亏不计入任何费用）
-            # 按买入明细聚合，得到总买入金额（不含费用）与数量
+            # 计算不含费用的加权买入均价与盈亏
+            # 按买入明细聚合，得到总买入金额（不含费用）与数量，以及买入手续费总额
             buy_agg = self.db.execute_query(
                 """
                 SELECT COALESCE(SUM(price * quantity), 0) AS gross_buy,
-                       COALESCE(SUM(quantity), 0) AS qty
+                       COALESCE(SUM(quantity), 0) AS qty,
+                       COALESCE(SUM(transaction_fee), 0) AS buy_fees
                 FROM trade_details
                 WHERE trade_id = ? AND transaction_type = 'buy' AND is_deleted = 0
                 """,
@@ -121,25 +122,31 @@ class TradingService:
             )
             gross_buy = Decimal(str(buy_agg['gross_buy'])) if buy_agg else Decimal('0')
             total_buy_quantity = Decimal(str(buy_agg['qty'])) if buy_agg else Decimal('0')
+            total_buy_fees = Decimal(str(buy_agg['buy_fees'])) if buy_agg else Decimal('0')
 
             avg_buy_price_ex_fee = (gross_buy / total_buy_quantity) if total_buy_quantity > 0 else Decimal('0')
             buy_cost_ex_fee = avg_buy_price_ex_fee * Decimal(str(quantity))
             gross_sell_amount = price * quantity
+            # 毛利（不含任何费用）
             profit_loss = gross_sell_amount - buy_cost_ex_fee
+            # 分摊到本次卖出的买入手续费
+            buy_fee_alloc_for_this_sell = (total_buy_fees * (Decimal(str(quantity)) / total_buy_quantity)) if total_buy_quantity > 0 else Decimal('0')
+            # 净利 = 净卖出(扣本次卖出费) - 不含费买入成本 - 分摊买入手续费
+            net_profit_this_sell = (gross_sell_amount - transaction_fee) - buy_cost_ex_fee - buy_fee_alloc_for_this_sell
             profit_loss_pct = ((gross_sell_amount - buy_cost_ex_fee) / buy_cost_ex_fee * 100) if buy_cost_ex_fee > 0 else Decimal('0')
             
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # 添加卖出明细
+                # 添加卖出明细（不存储单笔盈亏，仅存金额与费用）
                 cursor.execute('''
                     INSERT INTO trade_details (
                         trade_id, transaction_type, price, quantity, amount,
                         transaction_date, transaction_fee, sell_reason,
-                        profit_loss, profit_loss_pct, created_at
-                    ) VALUES (?, 'sell', ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ''', (trade_id, float(price), quantity, float(sell_amount), transaction_date, 
-                      float(transaction_fee), sell_reason, float(profit_loss), float(profit_loss_pct)))
+                        created_at
+                    ) VALUES (?, 'sell', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ''', (trade_id, float(price), quantity, float(sell_amount), transaction_date,
+                      float(transaction_fee), sell_reason))
                 
                 # 更新交易主记录
                 new_remaining = trade['remaining_quantity'] - quantity
@@ -159,6 +166,35 @@ class TradingService:
                 )
                 total_buy_gross = Decimal(str(total_buy_gross_row['gross_buy'])) if total_buy_gross_row else Decimal('0')
                 new_profit_loss_pct = (new_profit_loss / total_buy_gross * 100) if total_buy_gross > 0 else Decimal('0')
+
+                # 计算累计手续费（卖出+分摊买入），用于得到总净利润与净利率
+                sell_fees_row = self.db.execute_query(
+                    """
+                    SELECT COALESCE(SUM(transaction_fee),0) AS sell_fees
+                    FROM trade_details
+                    WHERE trade_id = ? AND transaction_type = 'sell' AND is_deleted = 0
+                    """,
+                    (trade_id,),
+                    fetch_one=True,
+                )
+                sell_fees_total = Decimal(str(sell_fees_row['sell_fees'])) if sell_fees_row else Decimal('0')
+                buy_fees_row = self.db.execute_query(
+                    """
+                    SELECT COALESCE(SUM(transaction_fee),0) AS buy_fees
+                    FROM trade_details
+                    WHERE trade_id = ? AND transaction_type = 'buy' AND is_deleted = 0
+                    """,
+                    (trade_id,),
+                    fetch_one=True,
+                )
+                buy_fees_total = Decimal(str(buy_fees_row['buy_fees'])) if buy_fees_row else Decimal('0')
+                # 已卖出部分的买入成本与分摊买入手续费
+                buy_cost_for_sold = avg_buy_price_ex_fee * Decimal(str(new_sell_quantity))
+                allocated_buy_fees_for_sold = (buy_fees_total * (Decimal(str(new_sell_quantity)) / total_buy_quantity)) if total_buy_quantity > 0 else Decimal('0')
+                new_gross_profit_total = new_profit_loss
+                new_net_profit_total = new_gross_profit_total - sell_fees_total - allocated_buy_fees_for_sold
+                denom_buy_cost_for_sold = buy_cost_for_sold
+                new_net_profit_pct = (new_net_profit_total / denom_buy_cost_for_sold * 100) if denom_buy_cost_for_sold > 0 else Decimal('0')
                 
                 status = 'closed' if new_remaining == 0 else 'open'
                 close_date = transaction_date if status == 'closed' else None
@@ -174,11 +210,16 @@ class TradingService:
                 cursor.execute('''
                     UPDATE trades SET
                         total_sell_amount = ?, total_sell_quantity = ?, remaining_quantity = ?,
-                        total_profit_loss = ?, total_profit_loss_pct = ?, status = ?,
-                        close_date = ?, holding_days = ?, trade_log = ?, updated_at = CURRENT_TIMESTAMP
+                        total_profit_loss = ?, total_profit_loss_pct = ?,
+                        total_gross_profit = ?, total_net_profit = ?, total_net_profit_pct = ?,
+                        status = ?, close_date = ?, holding_days = ?, trade_log = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                ''', (float(new_sell_amount), new_sell_quantity, new_remaining, float(new_profit_loss),
-                      float(new_profit_loss_pct), status, close_date, holding_days, trade_log, trade_id))
+                ''', (
+                        float(new_sell_amount), new_sell_quantity, new_remaining,
+                        float(new_gross_profit_total), float(new_profit_loss_pct),
+                        float(new_gross_profit_total), float(new_net_profit_total), float(new_net_profit_pct),
+                        status, close_date, holding_days, trade_log, trade_id
+                ))
                 
                 conn.commit()
                 return True, "卖出交易添加成功"
@@ -186,9 +227,15 @@ class TradingService:
         except Exception as e:
             return False, f"添加卖出交易失败: {str(e)}"
     
-    def get_all_trades(self, status: Optional[str] = None, strategy: Optional[str] = None, 
-                      include_deleted: bool = False) -> List[Dict[str, Any]]:
-        """获取所有交易"""
+    def get_all_trades(self, status: Optional[str] = None, strategy: Optional[str] = None,
+                       include_deleted: bool = False,
+                       order_by: str = 't.created_at DESC',
+                       limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """获取交易列表（统一查询与计算接口）
+
+        - 统一补全指标：总毛利润、总净利润、总净利率、总买入成交（不含费用）等
+        - 支持按状态/策略筛选，按任意列排序，并可限制返回条数
+        """
         query = '''
             SELECT t.*, s.name as strategy_name
             FROM trades t
@@ -214,10 +261,70 @@ class TradingService:
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
         
-        query += " ORDER BY t.created_at DESC"
+        # 排序（白名单保护，避免SQL注入，这里仅允许以 t. 或 s. 开头的列/表达式）
+        safe_order_by = order_by if order_by and (order_by.strip().startswith('t.') or order_by.strip().startswith('s.')) else 't.created_at DESC'
+        query += f" ORDER BY {safe_order_by}"
+        if limit is not None and isinstance(limit, int) and limit > 0:
+            query += f" LIMIT {limit}"
         
         trades = self.db.execute_query(query, tuple(params))
-        return [dict(trade) for trade in trades]
+        trade_dicts: List[Dict[str, Any]] = [dict(trade) for trade in trades]
+
+        # 统一计算指标（仅按开仓级别聚合，不保留每笔卖出盈亏）
+        for t in trade_dicts:
+            try:
+                sums = self.db.execute_query(
+                    """
+                    SELECT 
+                      COALESCE(SUM(CASE WHEN transaction_type='buy' THEN price*quantity END),0) AS gross_buy,
+                      COALESCE(SUM(CASE WHEN transaction_type='buy' THEN transaction_fee END),0) AS buy_fees,
+                      COALESCE(SUM(CASE WHEN transaction_type='sell' THEN price*quantity END),0) AS gross_sell,
+                      COALESCE(SUM(CASE WHEN transaction_type='sell' THEN transaction_fee END),0) AS sell_fees,
+                      COALESCE(SUM(CASE WHEN transaction_type='sell' THEN quantity END),0) AS sold_qty,
+                      COALESCE(SUM(CASE WHEN transaction_type='buy' THEN quantity END),0) AS buy_qty
+                    FROM trade_details WHERE trade_id = ? AND is_deleted = 0
+                    """,
+                    (t['id'],),
+                    fetch_one=True,
+                )
+                gross_buy_total = Decimal(str(sums['gross_buy'])) if sums else Decimal('0')
+                buy_fees_total = Decimal(str(sums['buy_fees'])) if sums else Decimal('0')
+                gross_sell_total = Decimal(str(sums['gross_sell'])) if sums else Decimal('0')
+                sell_fees_total = Decimal(str(sums['sell_fees'])) if sums else Decimal('0')
+                sold_qty = Decimal(str(sums['sold_qty'])) if sums else Decimal('0')
+                buy_qty = Decimal(str(sums['buy_qty'])) if sums else Decimal('0')
+
+                avg_buy_price_ex_fee = (gross_buy_total / buy_qty) if buy_qty > 0 else Decimal('0')
+                buy_cost_for_sold = avg_buy_price_ex_fee * sold_qty
+                allocated_buy_fees_for_sold = (buy_fees_total * (sold_qty / buy_qty)) if buy_qty > 0 else Decimal('0')
+                gross_profit_for_sold = gross_sell_total - buy_cost_for_sold
+                net_profit = gross_profit_for_sold - sell_fees_total - allocated_buy_fees_for_sold
+                denom = buy_cost_for_sold
+                net_profit_pct = (net_profit / denom * 100) if denom > 0 else Decimal('0')
+
+                # 写回统一字段
+                t['total_gross_buy'] = float(gross_buy_total)
+                t['total_buy_fees'] = float(buy_fees_total)
+                t['total_sell_fees'] = float(sell_fees_total)
+                t['total_gross_profit'] = float(gross_profit_for_sold)
+                t['total_net_profit'] = float(net_profit)
+                t['total_net_profit_pct'] = float(net_profit_pct)
+                # 兼容旧字段：total_profit_loss 表示毛利润
+                t['total_profit_loss'] = float(gross_profit_for_sold)
+                t['total_profit_loss_pct'] = float((gross_profit_for_sold / denom * 100) if denom > 0 else Decimal('0'))
+                # 额外派生：总买入金额（不含费用）、总卖出金额（不含费用）、总交易费用、总费用占比
+                total_buy_amount_ex_fee = gross_buy_total
+                total_sell_amount_ex_fee = gross_sell_total
+                total_fees = buy_fees_total + sell_fees_total
+                total_fee_ratio = (total_fees / gross_buy_total * 100) if gross_buy_total > 0 else Decimal('0')
+                t['total_buy_amount'] = float(total_buy_amount_ex_fee)
+                t['total_sell_amount'] = float(total_sell_amount_ex_fee)
+                t['total_fees'] = float(total_fees)
+                t['total_fee_ratio_pct'] = float(total_fee_ratio)
+            except Exception:
+                continue
+
+        return trade_dicts
     
     def get_trade_by_id(self, trade_id: int) -> Optional[Dict[str, Any]]:
         """根据ID获取交易"""
@@ -230,6 +337,69 @@ class TradingService:
         
         trade = self.db.execute_query(query, (trade_id,), fetch_one=True)
         return dict(trade) if trade else None
+
+    def get_trade_overview_metrics(self, trade_id: int) -> Dict[str, Any]:
+        """返回单笔交易的统一口径汇总指标（买入/卖出/盈亏）。
+
+        所有金额均为不含费用的成交额，费用单列；净利润=毛利−卖出费−按卖出份额分摊的买入费；
+        净利率分母=已卖出部分的不含费买入成本。与 get_all_trades 的聚合口径一致。
+        """
+        sums = self.db.execute_query(
+            """
+            SELECT 
+              COALESCE(SUM(CASE WHEN transaction_type='buy' THEN price*quantity END),0) AS gross_buy,
+              COALESCE(SUM(CASE WHEN transaction_type='buy' THEN transaction_fee END),0) AS buy_fees,
+              COALESCE(SUM(CASE WHEN transaction_type='sell' THEN price*quantity END),0) AS gross_sell,
+              COALESCE(SUM(CASE WHEN transaction_type='sell' THEN transaction_fee END),0) AS sell_fees,
+              COALESCE(SUM(CASE WHEN transaction_type='sell' THEN quantity END),0) AS sold_qty,
+              COALESCE(SUM(CASE WHEN transaction_type='buy' THEN quantity END),0) AS buy_qty
+            FROM trade_details WHERE trade_id = ? AND is_deleted = 0
+            """,
+            (trade_id,),
+            fetch_one=True,
+        )
+
+        gross_buy_total = Decimal(str(sums['gross_buy'])) if sums else Decimal('0')
+        buy_fees_total = Decimal(str(sums['buy_fees'])) if sums else Decimal('0')
+        gross_sell_total = Decimal(str(sums['gross_sell'])) if sums else Decimal('0')
+        sell_fees_total = Decimal(str(sums['sell_fees'])) if sums else Decimal('0')
+        sold_qty = Decimal(str(sums['sold_qty'])) if sums else Decimal('0')
+        buy_qty = Decimal(str(sums['buy_qty'])) if sums else Decimal('0')
+
+        avg_buy_price_ex_fee = (gross_buy_total / buy_qty) if buy_qty > 0 else Decimal('0')
+        avg_sell_price_ex_fee = (gross_sell_total / sold_qty) if sold_qty > 0 else Decimal('0')
+        buy_cost_for_sold = avg_buy_price_ex_fee * sold_qty
+        allocated_buy_fees_for_sold = (buy_fees_total * (sold_qty / buy_qty)) if buy_qty > 0 else Decimal('0')
+        gross_profit_for_sold = gross_sell_total - buy_cost_for_sold
+        net_profit = gross_profit_for_sold - sell_fees_total - allocated_buy_fees_for_sold
+        denom = buy_cost_for_sold
+
+        overview: Dict[str, Any] = {
+            'buy_gross': float(gross_buy_total),
+            'buy_qty': int(buy_qty),
+            'buy_fees': float(buy_fees_total),
+            'avg_buy_ex': float(avg_buy_price_ex_fee) if buy_qty > 0 else 0.0,
+            'sell_gross': float(gross_sell_total),
+            'sell_qty': int(sold_qty),
+            'sell_fees': float(sell_fees_total),
+            'avg_sell_ex': float(avg_sell_price_ex_fee) if sold_qty > 0 else 0.0,
+            'gross_profit': float(gross_profit_for_sold),
+            'gross_profit_rate': float((gross_profit_for_sold / gross_buy_total * 100) if gross_buy_total > 0 else Decimal('0')),
+            'net_profit': float(net_profit),
+            'net_profit_rate': float((net_profit / denom * 100) if denom > 0 else Decimal('0')),
+            # 与列表统一的派生字段
+            'total_buy_amount': float(gross_buy_total),
+            'total_sell_amount': float(gross_sell_total),
+            'total_buy_fees': float(buy_fees_total),
+            'total_sell_fees': float(sell_fees_total),
+            'total_profit_loss': float(gross_profit_for_sold),
+            'total_profit_loss_pct': float((gross_profit_for_sold / denom * 100) if denom > 0 else Decimal('0')),
+            'total_net_profit': float(net_profit),
+            'total_net_profit_pct': float((net_profit / denom * 100) if denom > 0 else Decimal('0')),
+            'total_fees': float(buy_fees_total + sell_fees_total),
+            'total_fee_ratio_pct': float(((buy_fees_total + sell_fees_total) / gross_buy_total * 100) if gross_buy_total > 0 else Decimal('0')),
+        }
+        return overview
     
     def get_trade_details(self, trade_id: int, include_deleted: bool = False) -> List[Dict[str, Any]]:
         """获取交易明细"""
