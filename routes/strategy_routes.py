@@ -7,6 +7,7 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, current_app
 
 from services import StrategyService, TradingService
+from services.mappers import dto_list_to_dicts, to_dict_dataclass
 from utils.decorators import handle_errors
 
 strategy_bp = Blueprint('strategy', __name__)
@@ -18,9 +19,8 @@ def strategies():
     try:
         strategy_service = StrategyService(current_app.db_service)
         trading_service = TradingService(current_app.db_service)
-        strategies_list = strategy_service.get_all_strategies()
-
-        # 为每个策略添加交易数量
+        strategies_list_dto = strategy_service.get_all_strategies(return_dto=True)
+        strategies_list = dto_list_to_dicts(strategies_list_dto)
         for strategy in strategies_list:
             trades = trading_service.get_all_trades(strategy=strategy['name'])
             strategy['trade_count'] = len([t for t in trades if t['status'] != 'deleted'])
@@ -104,7 +104,9 @@ def edit_strategy(strategy_id):
         trading_service = TradingService(current_app.db_service)
         
         if request.method == 'GET':
-            strategy = strategy_service.get_strategy_by_id(strategy_id)
+            strategy_obj = strategy_service.get_strategy_by_id(strategy_id, return_dto=True)
+            from services.mappers import to_dict_dataclass
+            strategy = to_dict_dataclass(strategy_obj) if strategy_obj else None
             if not strategy:
                 return redirect(url_for('strategy.strategies'))
             

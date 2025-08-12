@@ -18,12 +18,9 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 def get_strategies():
     """获取所有策略的API"""
     strategy_service = StrategyService(current_app.db_service)
-    strategies = strategy_service.get_all_strategies()
-    
-    return jsonify({
-        'success': True,
-        'data': strategies
-    })
+    strategies = strategy_service.get_all_strategies(return_dto=True)
+    from services.mappers import dto_list_to_dicts
+    return jsonify({'success': True, 'data': dto_list_to_dicts(strategies)})
 
 
 @api_bp.route('/tags')
@@ -243,29 +240,8 @@ def get_strategy_score():
         start_date=start_date,
         end_date=end_date
     )
-    
-    # 为向后兼容，添加旧的评分字段（修正盈亏比与频率评分）
-    if 'stats' in score:
-        stats = score['stats']
-        score['win_rate_score'] = min(stats['win_rate'] / 10, 10)
-        plr = stats.get('avg_profit_loss_ratio', 0) or 0
-        if plr == 0:
-            score['profit_loss_ratio_score'] = 0
-        elif plr == 9999.0:
-            score['profit_loss_ratio_score'] = 10
-        else:
-            score['profit_loss_ratio_score'] = min(plr, 10)
-        if stats['total_trades'] == 0:
-            score['frequency_score'] = 0
-        elif stats['avg_holding_days'] <= 1:
-            score['frequency_score'] = 8
-        elif stats['avg_holding_days'] <= 7:
-            score['frequency_score'] = 7
-        elif stats['avg_holding_days'] <= 30:
-            score['frequency_score'] = 6
-        else:
-            score['frequency_score'] = max(0, 6 - (stats['avg_holding_days'] - 30) / 30)
-        score['total_score'] = score['win_rate_score'] + score['profit_loss_ratio_score'] + score['frequency_score']
+    # 统一附加旧字段
+    score = analysis_service.attach_legacy_score_fields(score)
     
     return jsonify({
         'success': True,

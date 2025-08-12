@@ -46,9 +46,19 @@
                 </div>
                 {% endif %}
                 <div class="mt-2">
-                    <span class="badge bg-light text-dark fs-6">{{ score.total_score }}分</span>
+                    {% set ws = (score.stats.win_rate or 0) / 10 %}
+                    {% set plrs = (score.stats.avg_profit_loss_ratio == 9999.0 and 10) or (score.stats.avg_profit_loss_ratio or 0) %}
+                    {% if plrs > 10 %}{% set plrs = 10 %}{% endif %}
+                    {% set fs = (score.stats.total_trades == 0 and 0) or (score.stats.avg_holding_days <= 1 and 8) or (score.stats.avg_holding_days <= 7 and 7) or (score.stats.avg_holding_days <= 30 and 6) or (6 - ((score.stats.avg_holding_days or 0) - 30) / 30) %}
+                    {% set total = ws + plrs + fs %}
+                    <span class="badge bg-light text-dark fs-6">{{ '%.1f'|format(total) }}分</span>
                 </div>
-                <small class="opacity-75">{{ score.rating }}</small>
+                {% set rating = 'D' %}
+                {% if total >= 26 %}{% set rating = 'A+' %}
+                {% elif total >= 23 %}{% set rating = 'A' %}
+                {% elif total >= 20 %}{% set rating = 'B' %}
+                {% elif total >= 18 %}{% set rating = 'C' %}{% endif %}
+                <small class="opacity-75">{{ rating }}</small>
             </div>
             <div class="card-body">
                 <!-- 三角评分图 -->
@@ -60,29 +70,29 @@
                 <div class="row text-center small">
                     <div class="col-4">
                         <div class="mb-1">
-                            <strong>{{ score.win_rate_score }}</strong>
+                            <strong>{{ '%.1f'|format(ws) }}</strong>
                         </div>
                         <div class="text-muted">胜率</div>
                         <div class="progress mt-1" style="height: 4px;">
-                            <div class="progress-bar bg-success" style="width: {{ score.win_rate_score * 10 }}%"></div>
+                            <div class="progress-bar bg-success" style="width: {{ ws * 10 }}%"></div>
                         </div>
                     </div>
                     <div class="col-4">
                         <div class="mb-1">
-                            <strong>{{ score.profit_loss_ratio_score }}</strong>
+                            <strong>{{ '%.1f'|format(plrs) }}</strong>
                         </div>
                         <div class="text-muted">盈亏比</div>
                         <div class="progress mt-1" style="height: 4px;">
-                            <div class="progress-bar bg-warning" style="width: {{ score.profit_loss_ratio_score * 10 }}%"></div>
+                            <div class="progress-bar bg-warning" style="width: {{ plrs * 10 }}%"></div>
                         </div>
                     </div>
                     <div class="col-4">
                         <div class="mb-1">
-                            <strong>{{ score.frequency_score }}</strong>
+                            <strong>{{ '%.1f'|format(fs) }}</strong>
                         </div>
                         <div class="text-muted">频率</div>
                         <div class="progress mt-1" style="height: 4px;">
-                            <div class="progress-bar bg-info" style="width: {{ score.frequency_score * 12.5 }}%"></div>
+                            <div class="progress-bar bg-info" style="width: {{ fs * 12.5 }}%"></div>
                         </div>
                     </div>
                 </div>
@@ -177,9 +187,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // 绘制三角评分图
     {% for strategy_id, score in scores.items() %}
     drawTriangleScore('triangle-{{ strategy_id }}', 
-                     {{ score.win_rate_score }}, 
-                     {{ score.profit_loss_ratio_score }}, 
-                     {{ score.frequency_score }});
+                     {{ ((score.stats.win_rate or 0) / 10) or 0 }}, 
+                     {{ (((score.stats.avg_profit_loss_ratio == 9999.0 and 10) or (score.stats.avg_profit_loss_ratio or 0)) or 0) }}, 
+                     {{ ((score.stats.total_trades == 0 and 0) or (score.stats.avg_holding_days and (score.stats.avg_holding_days <= 1 and 8) or (score.stats.avg_holding_days <= 7 and 7) or (score.stats.avg_holding_days <= 30 and 6)) or (6 - (((score.stats.avg_holding_days or 0) - 30) / 30))) or 0 }});
     {% endfor %}
 });
 

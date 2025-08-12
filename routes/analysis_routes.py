@@ -7,6 +7,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, current_app
 
 from services import AnalysisService, StrategyService
+from services.mappers import dto_list_to_dicts, to_dict_dataclass
 from utils.decorators import handle_errors
 
 analysis_bp = Blueprint('analysis', __name__)
@@ -19,41 +20,13 @@ def strategy_scores():
         analysis_service = AnalysisService(current_app.db_service)
         strategy_service = StrategyService(current_app.db_service)
         
-        scores_list = analysis_service.get_strategy_scores()
-        strategies = strategy_service.get_all_strategies()
-        
-        # 为向后兼容，为每个评分添加旧字段
-        for score in scores_list:
-            stats = score['stats']
-            # 计算旧评分字段
-            score['win_rate_score'] = min(stats['win_rate'] / 10, 10)  # 胜率百分比除以10
-            
-            # 盈亏比评分：基于盈亏比（总盈利/总亏损绝对值）
-            plr = stats.get('avg_profit_loss_ratio', 0) or 0
-            if plr == 0:
-                score['profit_loss_ratio_score'] = 0
-            elif plr == 9999.0:
-                score['profit_loss_ratio_score'] = 10
-            else:
-                score['profit_loss_ratio_score'] = min(plr, 10)
-            
-            # 频率评分：基于平均持仓天数
-            if stats['total_trades'] == 0:
-                score['frequency_score'] = 0
-            elif stats['avg_holding_days'] <= 1:
-                score['frequency_score'] = 8
-            elif stats['avg_holding_days'] <= 7:
-                score['frequency_score'] = 7
-            elif stats['avg_holding_days'] <= 30:
-                score['frequency_score'] = 6
-            else:
-                score['frequency_score'] = max(0, 6 - (stats['avg_holding_days'] - 30) / 30)
-            
-            # 总分
-            score['total_score'] = score['win_rate_score'] + score['profit_loss_ratio_score'] + score['frequency_score']
-        
+        scores_dto = analysis_service.get_strategy_scores(return_dto=True)
+        strategies_raw = strategy_service.get_all_strategies(return_dto=True)
+        # DTO → dict（模板内按 stats 动态计算评分显示）
+        scores_list = [to_dict_dataclass(s) for s in scores_dto]
+        strategies = dto_list_to_dicts(strategies_raw)
         # 将评分列表转换为字典格式，模板期望 {strategy_id: score}
-        scores = {score['strategy_id']: score for score in scores_list}
+        scores = {s['strategy_id']: s for s in scores_list}
         
         return render_template('strategy_scores.html', 
                              scores=scores, 
@@ -72,84 +45,65 @@ def strategy_detail(strategy_id):
         strategy_service = StrategyService(current_app.db_service)
         
         # 获取策略信息
-        strategy = strategy_service.get_strategy_by_id(strategy_id)
+        strategy = strategy_service.get_strategy_by_id(strategy_id, return_dto=True)
+        strategy = to_dict_dataclass(strategy) if strategy else None
         if not strategy:
             return redirect(url_for('analysis.strategy_scores'))
         
-        # 计算策略评分
-        strategy_score = analysis_service.calculate_strategy_score(strategy_id=strategy_id)
-        
-        # 为向后兼容，添加旧的评分字段
-        if 'stats' in strategy_score:
-            stats = strategy_score['stats']
-            # 计算旧评分字段
-            strategy_score['win_rate_score'] = min(stats['win_rate'] / 10, 10)
-            
-            # 盈亏比评分：基于盈亏比（总盈利/总亏损绝对值）
-            plr = stats.get('avg_profit_loss_ratio', 0) or 0
-            if plr == 0:
-                strategy_score['profit_loss_ratio_score'] = 0
-            elif plr == 9999.0:
-                strategy_score['profit_loss_ratio_score'] = 10
-            else:
-                strategy_score['profit_loss_ratio_score'] = min(plr, 10)
-            
-            # 频率评分：无已平仓交易则为0
-            if stats['total_trades'] == 0:
-                strategy_score['frequency_score'] = 0
-            elif stats['avg_holding_days'] <= 1:
-                strategy_score['frequency_score'] = 8
-            elif stats['avg_holding_days'] <= 7:
-                strategy_score['frequency_score'] = 7
-            elif stats['avg_holding_days'] <= 30:
-                strategy_score['frequency_score'] = 6
-            else:
-                strategy_score['frequency_score'] = max(0, 6 - (stats['avg_holding_days'] - 30) / 30)
-            
-            # 总分
-            strategy_score['total_score'] = strategy_score['win_rate_score'] + strategy_score['profit_loss_ratio_score'] + strategy_score['frequency_score']
+        # 计算策略评分（DTO）
+        score_dto = analysis_service.calculate_strategy_score(strategy_id=strategy_id, return_dto=True)
+        strategy_score = to_dict_dataclass(score_dto)
         
         # 获取该策略下的股票评分
         sort_by = request.args.get('sort_by', 'total_return_rate')
         sort_order = request.args.get('sort_order', 'desc')
         
-        symbol_scores = analysis_service.get_symbol_scores_by_strategy(strategy_id=strategy_id)
+        symbol_scores_dto = analysis_service.get_symbol_scores_by_strategy(strategy_id=strategy_id, return_dto=True)
+        symbol_scores = [to_dict_dataclass(s) for s in symbol_scores_dto]
         
-        # 为symbol_scores中的每个记录添加评分字段以支持排序
-        for score in symbol_scores:
-            if 'stats' in score:
-                stats = score['stats']
-                score['win_rate_score'] = min(stats['win_rate'] / 10, 10)
-                plr = stats.get('avg_profit_loss_ratio', 0) or 0
-                if plr == 0:
-                    score['profit_loss_ratio_score'] = 0
-                elif plr == 9999.0:
-                    score['profit_loss_ratio_score'] = 10
-                else:
-                    score['profit_loss_ratio_score'] = min(plr, 10)
-                if stats['total_trades'] == 0:
-                    score['frequency_score'] = 0
-                elif stats['avg_holding_days'] <= 1:
-                    score['frequency_score'] = 8
-                elif stats['avg_holding_days'] <= 7:
-                    score['frequency_score'] = 7
-                elif stats['avg_holding_days'] <= 30:
-                    score['frequency_score'] = 6
-                else:
-                    score['frequency_score'] = max(0, 6 - (stats['avg_holding_days'] - 30) / 30)
-                score['total_score'] = score['win_rate_score'] + score['profit_loss_ratio_score'] + score['frequency_score']
-        
-        # 排序
+        # 排序（对可能为 None 的字段进行兜底，避免 None 比较）
         reverse = (sort_order == 'desc')
-        if sort_by in ['total_return_rate', 'win_rate', 'total_return', 'avg_return_per_trade']:
-            symbol_scores.sort(key=lambda x: x['stats'][sort_by], reverse=reverse)
+
+        def _compute_scores(stats: dict) -> tuple:
+            win_rate_score = (stats.get('win_rate') or 0) / 10
+            profit_loss_ratio = stats.get('avg_profit_loss_ratio')
+            profit_loss_ratio_score = 10 if profit_loss_ratio == 9999.0 else (profit_loss_ratio or 0)
+            if profit_loss_ratio_score > 10:
+                profit_loss_ratio_score = 10
+            avg_holding_days = stats.get('avg_holding_days')
+            total_trades = stats.get('total_trades') or 0
+            if not total_trades:
+                frequency_score = 0
+            else:
+                if avg_holding_days is None:
+                    frequency_score = 0
+                elif avg_holding_days <= 1:
+                    frequency_score = 8
+                elif avg_holding_days <= 7:
+                    frequency_score = 7
+                elif avg_holding_days <= 30:
+                    frequency_score = 6
+                else:
+                    frequency_score = 6 - ((avg_holding_days - 30) / 30)
+            total_score = win_rate_score + profit_loss_ratio_score + frequency_score
+            return win_rate_score, profit_loss_ratio_score, frequency_score, total_score
+
+        if sort_by in ['total_return_rate', 'win_rate', 'total_return', 'avg_return_per_trade', 'avg_holding_days', 'total_trades']:
+            symbol_scores.sort(key=lambda x: (x.get('stats', {}).get(sort_by) or 0), reverse=reverse)
         elif sort_by in ['total_score', 'win_rate_score', 'profit_loss_ratio_score', 'frequency_score']:
-            symbol_scores.sort(key=lambda x: x.get(sort_by, 0), reverse=reverse)
+            index_map = {
+                'win_rate_score': 0,
+                'profit_loss_ratio_score': 1,
+                'frequency_score': 2,
+                'total_score': 3,
+            }
+            idx = index_map.get(sort_by, 3)
+            symbol_scores.sort(key=lambda x: _compute_scores(x.get('stats', {}))[idx], reverse=reverse)
         elif sort_by == 'symbol_code':
-            symbol_scores.sort(key=lambda x: x.get('symbol_code', ''), reverse=reverse)
+            symbol_scores.sort(key=lambda x: x.get('symbol_code', '') or '', reverse=reverse)
         
         # 获取所有策略用于下拉选择
-        strategies = strategy_service.get_all_strategies()
+        strategies = dto_list_to_dicts(strategy_service.get_all_strategies(return_dto=True))
         strategies_dict = {s['id']: s['name'] for s in strategies}
         
         return render_template('strategy_detail.html',
@@ -175,7 +129,7 @@ def symbol_comparison():
         symbols = analysis_service.get_all_symbols()
         # 提供策略数据给前端，便于渲染与异步评分
         strategy_service = StrategyService(current_app.db_service)
-        strategies_data = strategy_service.get_all_strategies()
+        strategies_data = dto_list_to_dicts(strategy_service.get_all_strategies(return_dto=True))
         
         return render_template('symbol_comparison.html', symbols=symbols, strategies_data=strategies_data)
         
@@ -190,55 +144,21 @@ def symbol_detail(symbol_code):
     try:
         analysis_service = AnalysisService(current_app.db_service)
 
-        # 获取该股票在各策略下的表现
-        strategy_scores = analysis_service.get_strategies_scores_by_symbol(symbol_code)
+        # 获取该股票在各策略下的表现（DTO）
+        scores_dto = analysis_service.get_strategies_scores_by_symbol(symbol_code, return_dto=True)
+        strategy_scores = []
+        for s in scores_dto:
+            d = to_dict_dataclass(s)
+            d.update(analysis_service._compute_legacy_fields(d.get('stats', {})))
+            strategy_scores.append(d)
 
         if not strategy_scores:
             return redirect(url_for('analysis.symbol_comparison'))
 
-        # 为每条记录补充评分字段与总分/评级
-        for score in strategy_scores:
-            if 'stats' in score:
-                stats = score['stats']
-                score['win_rate_score'] = min(stats['win_rate'] / 10, 10)
-                plr = stats.get('avg_profit_loss_ratio', 0) or 0
-                if plr == 0:
-                    score['profit_loss_ratio_score'] = 0
-                elif plr == 9999.0:
-                    score['profit_loss_ratio_score'] = 10
-                else:
-                    score['profit_loss_ratio_score'] = min(plr, 10)
-                if stats['total_trades'] == 0:
-                    score['frequency_score'] = 0
-                elif stats['avg_holding_days'] <= 1:
-                    score['frequency_score'] = 8
-                elif stats['avg_holding_days'] <= 7:
-                    score['frequency_score'] = 7
-                elif stats['avg_holding_days'] <= 30:
-                    score['frequency_score'] = 6
-                else:
-                    score['frequency_score'] = max(0, 6 - (stats['avg_holding_days'] - 30) / 30)
-                score['total_score'] = score['win_rate_score'] + score['profit_loss_ratio_score'] + score['frequency_score']
-                if score['total_score'] >= 26:
-                    score['rating'] = 'A+'
-                elif score['total_score'] >= 23:
-                    score['rating'] = 'A'
-                elif score['total_score'] >= 20:
-                    score['rating'] = 'B'
-                elif score['total_score'] >= 18:
-                    score['rating'] = 'C'
-                else:
-                    score['rating'] = 'D'
+        # 旧字段兼容逻辑已移除，模板直接使用 DTO 字段
 
-        # 获取股票名称（从交易表中推断）
-        symbol_name = "未知股票"
-        from services import TradingService
-        trading_service = TradingService(current_app.db_service)
-        trades = trading_service.get_all_trades()
-        for trade in trades:
-            if trade['symbol_code'] == symbol_code:
-                symbol_name = trade['symbol_name']
-                break
+        # 获取股票名称（从评分数据推断）
+        symbol_name = next((s.get('symbol_name') for s in strategy_scores if s.get('symbol_name')), '未知股票')
 
         return render_template('symbol_detail.html',
                               symbol_code=symbol_code,
@@ -306,45 +226,12 @@ def time_detail(period):
         start_date, end_date = analysis_service._get_period_date_range(period, period_type)
 
         # 获取该时间段的策略表现
-        strategy_scores = analysis_service.get_strategies_scores_by_time_period(period, period_type)
-
-        # 为每个策略评分添加旧字段与总分/评级
-        for score in strategy_scores:
-            if 'stats' in score:
-                stats = score['stats']
-                score['win_rate_score'] = min(stats['win_rate'] / 10, 10)
-                plr = stats.get('avg_profit_loss_ratio', 0) or 0
-                if plr == 0:
-                    score['profit_loss_ratio_score'] = 0
-                elif plr == 9999.0:
-                    score['profit_loss_ratio_score'] = 10
-                else:
-                    score['profit_loss_ratio_score'] = min(plr, 10)
-                if stats['total_trades'] == 0:
-                    score['frequency_score'] = 0
-                elif stats['avg_holding_days'] <= 1:
-                    score['frequency_score'] = 8
-                elif stats['avg_holding_days'] <= 7:
-                    score['frequency_score'] = 7
-                elif stats['avg_holding_days'] <= 30:
-                    score['frequency_score'] = 6
-                else:
-                    score['frequency_score'] = max(0, 6 - (stats['avg_holding_days'] - 30) / 30)
-                score['total_score'] = score['win_rate_score'] + score['profit_loss_ratio_score'] + score['frequency_score']
-                # 简单评级
-                if score['total_score'] >= 26:
-                    score['rating'] = 'A+'
-                elif score['total_score'] >= 23:
-                    score['rating'] = 'A'
-                elif score['total_score'] >= 20:
-                    score['rating'] = 'B'
-                elif score['total_score'] >= 18:
-                    score['rating'] = 'C'
-                else:
-                    score['rating'] = 'D'
+        scores_dto = analysis_service.get_strategies_scores_by_time_period(period, period_type, return_dto=True)
+        strategy_scores = [to_dict_dataclass(s) for s in scores_dto]
 
         # 获取时间段汇总
-        period_summary = analysis_service.get_period_summary(period, period_type)
+        ps_dto = analysis_service.get_period_summary(period, period_type, return_dto=True)
+        period_summary = to_dict_dataclass(ps_dto)
 
         return render_template('time_detail.html',
                               period=period,

@@ -11,6 +11,7 @@ from decimal import Decimal
 from .database_service import DatabaseService
 from .strategy_service import StrategyService
 from utils.helpers import get_period_date_range
+from .mappers import dict_to_trade_dto, TradeDTO, ScoreDTO, to_dict_dataclass
 
 
 class AnalysisService:
@@ -22,7 +23,7 @@ class AnalysisService:
     
     def calculate_strategy_score(self, strategy_id: Optional[int] = None, strategy: Optional[str] = None,
                                symbol_code: Optional[str] = None, start_date: Optional[str] = None,
-                               end_date: Optional[str] = None) -> Dict[str, Any]:
+                               end_date: Optional[str] = None, return_dto: bool = False) -> Dict[str, Any] | ScoreDTO:
         """计算策略评分"""
         query = '''
             SELECT t.*, s.name as strategy_name
@@ -60,10 +61,89 @@ class AnalysisService:
         query += " ORDER BY t.open_date"
         
         trades = self.db.execute_query(query, tuple(params))
-        
-        return self._calculate_performance_metrics(trades)
+        result = self._calculate_performance_metrics(trades)
+        if return_dto:
+            return ScoreDTO(
+                strategy_id=strategy_id,
+                strategy_name=strategy if strategy and not strategy_id else None,
+                stats=result['stats']
+            )
+        return result
+
+    def attach_legacy_score_fields(self, score: Dict[str, Any]) -> Dict[str, Any]:
+        """为评分结果附加旧字段（向后兼容）。
+
+        规则与路由层保持一致，但集中在服务层，避免重复（DRY）。
+        """
+        if not score or 'stats' not in score:
+            return score
+        stats = score['stats']
+        score['win_rate_score'] = min(stats.get('win_rate', 0) / 10, 10)
+        plr = stats.get('avg_profit_loss_ratio', 0) or 0
+        if plr == 0:
+            score['profit_loss_ratio_score'] = 0
+        elif plr == 9999.0:
+            score['profit_loss_ratio_score'] = 10
+        else:
+            score['profit_loss_ratio_score'] = min(plr, 10)
+        if stats.get('total_trades', 0) == 0:
+            score['frequency_score'] = 0
+        elif stats.get('avg_holding_days', 0) <= 1:
+            score['frequency_score'] = 8
+        elif stats.get('avg_holding_days', 0) <= 7:
+            score['frequency_score'] = 7
+        elif stats.get('avg_holding_days', 0) <= 30:
+            score['frequency_score'] = 6
+        else:
+            score['frequency_score'] = max(0, 6 - (stats.get('avg_holding_days', 0) - 30) / 30)
+        score['total_score'] = score['win_rate_score'] + score['profit_loss_ratio_score'] + score['frequency_score']
+        return score
+
+    def _compute_legacy_fields(self, stats: Dict[str, Any]) -> Dict[str, Any]:
+        """基于统计数据计算旧版评分字段与评级，供 DTO 填充使用。"""
+        if not stats:
+            return {'win_rate_score': 0.0, 'profit_loss_ratio_score': 0.0, 'frequency_score': 0.0, 'total_score': 0.0, 'rating': 'D'}
+        win_rate_score = min((stats.get('win_rate', 0) or 0) / 10, 10)
+        plr = stats.get('avg_profit_loss_ratio', 0) or 0
+        if plr == 0:
+            profit_loss_ratio_score = 0.0
+        elif plr == 9999.0:
+            profit_loss_ratio_score = 10.0
+        else:
+            profit_loss_ratio_score = float(min(plr, 10))
+        # 频率分数
+        total_trades = stats.get('total_trades', 0) or 0
+        avg_days = stats.get('avg_holding_days', 0) or 0
+        if total_trades == 0:
+            frequency_score = 0.0
+        elif avg_days <= 1:
+            frequency_score = 8.0
+        elif avg_days <= 7:
+            frequency_score = 7.0
+        elif avg_days <= 30:
+            frequency_score = 6.0
+        else:
+            frequency_score = max(0.0, 6.0 - (avg_days - 30) / 30)
+        total_score = float(win_rate_score) + float(profit_loss_ratio_score) + float(frequency_score)
+        if total_score >= 26:
+            rating = 'A+'
+        elif total_score >= 23:
+            rating = 'A'
+        elif total_score >= 20:
+            rating = 'B'
+        elif total_score >= 18:
+            rating = 'C'
+        else:
+            rating = 'D'
+        return {
+            'win_rate_score': float(win_rate_score),
+            'profit_loss_ratio_score': float(profit_loss_ratio_score),
+            'frequency_score': float(frequency_score),
+            'total_score': float(total_score),
+            'rating': rating,
+        }
     
-    def get_strategy_scores(self) -> List[Dict[str, Any]]:
+    def get_strategy_scores(self, return_dto: bool = False) -> List[Dict[str, Any]] | List[ScoreDTO]:
         """获取所有策略的评分"""
         strategies = self.strategy_service.get_all_strategies()
         scores = []
@@ -76,10 +156,12 @@ class AnalysisService:
         
         # 按总收益率排序
         scores.sort(key=lambda x: x['stats']['total_return_rate'], reverse=True)
+        if return_dto:
+            return [ScoreDTO(strategy_id=s['strategy_id'], strategy_name=s['strategy_name'], stats=s['stats']) for s in scores]
         return scores
     
     def get_symbol_scores_by_strategy(self, strategy_id: Optional[int] = None, 
-                                    strategy: Optional[str] = None) -> List[Dict[str, Any]]:
+                                    strategy: Optional[str] = None, return_dto: bool = False) -> List[Dict[str, Any]] | List[ScoreDTO]:
         """按策略获取股票评分"""
         # 获取该策略下的所有股票
         query = '''
@@ -116,6 +198,13 @@ class AnalysisService:
         
         # 按总收益率排序
         scores.sort(key=lambda x: x['stats']['total_return_rate'], reverse=True)
+        if return_dto:
+            sid = strategy_id or (self._get_strategy_by_name(strategy) or {}).get('id')
+            return [ScoreDTO(strategy_id=sid,
+                             strategy_name=strategy,
+                             stats=s['stats'],
+                             symbol_code=s.get('symbol_code'),
+                             symbol_name=s.get('symbol_name')) for s in scores]
         return scores
     
     def get_all_symbols(self) -> List[Dict[str, Any]]:
@@ -131,7 +220,7 @@ class AnalysisService:
         symbols = self.db.execute_query(query)
         return [dict(symbol) for symbol in symbols]
     
-    def get_strategies_scores_by_symbol(self, symbol_code: str) -> List[Dict[str, Any]]:
+    def get_strategies_scores_by_symbol(self, symbol_code: str, return_dto: bool = False) -> List[Dict[str, Any]] | List[ScoreDTO]:
         """按股票获取策略评分"""
         strategies = self.strategy_service.get_all_strategies()
         scores = []
@@ -150,6 +239,8 @@ class AnalysisService:
         
         # 按总收益率排序
         scores.sort(key=lambda x: x['stats']['total_return_rate'], reverse=True)
+        if return_dto:
+            return [ScoreDTO(strategy_id=s['strategy_id'], strategy_name=s['strategy_name'], stats=s['stats']) for s in scores]
         return scores
     
     def get_time_periods(self, period_type: str = 'year') -> List[str]:
@@ -188,7 +279,7 @@ class AnalysisService:
         periods = self.db.execute_query(query)
         return [period['period'] for period in periods]
     
-    def get_strategies_scores_by_time_period(self, period: str, period_type: str = 'year') -> List[Dict[str, Any]]:
+    def get_strategies_scores_by_time_period(self, period: str, period_type: str = 'year', return_dto: bool = False) -> List[Dict[str, Any]] | List[ScoreDTO]:
         """按时间周期获取策略评分"""
         start_date, end_date = self._get_period_date_range(period, period_type)
         
@@ -210,16 +301,21 @@ class AnalysisService:
         
         # 按总收益率排序
         scores.sort(key=lambda x: x['stats']['total_return_rate'], reverse=True)
+        if return_dto:
+            return [ScoreDTO(strategy_id=s['strategy_id'], strategy_name=s['strategy_name'], stats=s['stats']) for s in scores]
         return scores
     
-    def get_period_summary(self, period: str, period_type: str = 'year') -> Dict[str, Any]:
+    def get_period_summary(self, period: str, period_type: str = 'year', return_dto: bool = False) -> Dict[str, Any] | ScoreDTO:
         """获取时间周期汇总"""
         start_date, end_date = self._get_period_date_range(period, period_type)
         
-        return self.calculate_strategy_score(
+        result = self.calculate_strategy_score(
             start_date=start_date,
             end_date=end_date
         )
+        if return_dto:
+            return ScoreDTO(strategy_id=None, strategy_name=None, stats=result['stats'])
+        return result
     
     def _calculate_performance_metrics(self, trades) -> Dict[str, Any]:
         """计算性能指标"""
@@ -257,19 +353,19 @@ class AnalysisService:
         
         for trade in trades:
             trade_dict = dict(trade)
-            
-            # 计算交易手续费
-            fees_query = '''
-                SELECT COALESCE(SUM(transaction_fee), 0) as total_fees
-                FROM trade_details
-                WHERE trade_id = ? AND is_deleted = 0
-            '''
-            fees_result = self.db.execute_query(fees_query, (trade_dict['id'],), fetch_one=True)
-            trade_fees = fees_result['total_fees'] if fees_result else 0
-            total_fees += Decimal(str(trade_fees))
-            
-            # 只统计已平仓的交易
+
+            # 只统计已平仓的交易（同时仅对已平仓交易进行聚合查询，避免大量无效查询）
             if trade_dict['status'] == 'closed':
+                # 计算交易手续费（仅针对已平仓交易）
+                fees_query = '''
+                    SELECT COALESCE(SUM(transaction_fee), 0) as total_fees
+                    FROM trade_details
+                    WHERE trade_id = ? AND is_deleted = 0
+                '''
+                fees_result = self.db.execute_query(fees_query, (trade_dict['id'],), fetch_one=True)
+                trade_fees = fees_result['total_fees'] if fees_result else 0
+                total_fees += Decimal(str(trade_fees))
+
                 total_trades += 1
                 total_investment += Decimal(str(trade_dict['total_buy_amount']))
                 # 计算该交易的毛利/净利（基于明细，避免依赖主表聚合列）

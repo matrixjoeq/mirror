@@ -4,11 +4,12 @@
 策略服务层
 """
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Any
 from datetime import datetime
 
 from .database_service import DatabaseService
 from models.strategy import Strategy, Tag
+from .mappers import dict_to_strategy_dto, StrategyDTO, dict_to_tag_dto, TagDTO
 
 
 class StrategyService:
@@ -17,7 +18,7 @@ class StrategyService:
     def __init__(self, db_service: Optional[DatabaseService] = None):
         self.db = db_service or DatabaseService()
     
-    def get_all_strategies(self, include_inactive: bool = False) -> List[Dict[str, Any]]:
+    def get_all_strategies(self, include_inactive: bool = False, return_dto: bool = False) -> List[Any]:
         """获取所有策略"""
         query = '''
             SELECT s.*, GROUP_CONCAT(st.name) as tag_names
@@ -40,9 +41,11 @@ class StrategyService:
             del strategy_dict['tag_names']
             result.append(strategy_dict)
         
+        if return_dto:
+            return [dict_to_strategy_dto(s) for s in result]
         return result
     
-    def get_strategy_by_id(self, strategy_id: int) -> Optional[Dict[str, Any]]:
+    def get_strategy_by_id(self, strategy_id: int, return_dto: bool = False) -> Optional[Any]:
         """根据ID获取策略"""
         query = '''
             SELECT s.*, GROUP_CONCAT(st.name) as tag_names
@@ -59,7 +62,7 @@ class StrategyService:
             strategy_dict = dict(strategy)
             strategy_dict['tags'] = strategy_dict['tag_names'].split(',') if strategy_dict['tag_names'] else []
             del strategy_dict['tag_names']
-            return strategy_dict
+            return dict_to_strategy_dto(strategy_dict) if return_dto else strategy_dict
         
         return None
     

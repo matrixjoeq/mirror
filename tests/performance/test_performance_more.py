@@ -39,8 +39,8 @@ class TestPerformanceMore(unittest.TestCase):
 
         # 组合过滤查询性能
         t0 = time.perf_counter()
-        _ = self.trading.get_all_trades(status='open')
-        _ = self.trading.get_all_trades(status='closed')
+        _ = self.trading.get_all_trades(status='open', compute_metrics=False)
+        _ = self.trading.get_all_trades(status='closed', compute_metrics=False)
         elapsed = time.perf_counter() - t0
         self.assertLess(elapsed, 1.5)
 

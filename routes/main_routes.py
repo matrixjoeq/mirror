@@ -6,6 +6,7 @@
 
 from flask import Blueprint, render_template, current_app, request
 from services import TradingService, StrategyService, AnalysisService
+from services.mappers import dto_list_to_dicts
 from decimal import Decimal
 
 main_bp = Blueprint('main', __name__)
@@ -21,8 +22,10 @@ def index():
         analysis_service = AnalysisService(current_app.db_service)
         
         # 获取统计数据（统一接口）
-        all_trades = trading_service.get_all_trades()
-        strategies_list = strategy_service.get_all_strategies()
+        all_trades_dto = trading_service.get_all_trades(return_dto=True)
+        strategies_dto = strategy_service.get_all_strategies(return_dto=True)
+        all_trades = dto_list_to_dicts(all_trades_dto)
+        strategies_list = dto_list_to_dicts(strategies_dto)
         
         # 转换策略为字典格式 (模板期望的格式)
         strategies = {str(s['id']): s['name'] for s in strategies_list}
@@ -37,7 +40,9 @@ def index():
         overall_performance = analysis_service.calculate_strategy_score()
         
         # 获取最近的交易（按开仓日期降序取前10）
-        recent_trades = trading_service.get_all_trades(order_by='t.open_date DESC', limit=10)
+        recent_trades = dto_list_to_dicts(
+            trading_service.get_all_trades(order_by='t.open_date DESC', limit=10, return_dto=True)
+        )
         
         # 获取查询参数
         selected_strategy = request.args.get('strategy', 'all')

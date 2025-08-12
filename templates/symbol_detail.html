@@ -22,7 +22,7 @@
                 </p>
                 
                 <!-- 策略评分概览 -->
-                {% set best_strategy = strategy_scores | selectattr('total_score', 'equalto', (strategy_scores | map(attribute='total_score') | max)) | first %}
+                {% set best_strategy = strategy_scores | selectattr('stats', 'defined') | sort(attribute='stats.win_rate', reverse=true) | first %}
                 <div class="row">
                     {% for score in strategy_scores %}
                     {% set icon = 'graph-up' %}
@@ -50,21 +50,29 @@
                             <div class="card-body p-2 pt-3">
                                 <i class="bi bi-{{ icon }} text-{{ color }} fs-4"></i>
                                 <div class="small">{{ score.strategy_name }}</div>
+                                {% set _ws = (score.stats.win_rate or 0)/10 %}
+                                {% set _plrs = (score.stats.avg_profit_loss_ratio == 9999.0 and 10) or (score.stats.avg_profit_loss_ratio or 0) %}
+                                {% if _plrs > 10 %}{% set _plrs = 10 %}{% endif %}
+                                {% set _fs = (score.stats.total_trades == 0 and 0) or (score.stats.avg_holding_days <= 1 and 8) or (score.stats.avg_holding_days <= 7 and 7) or (score.stats.avg_holding_days <= 30 and 6) or (6 - ((score.stats.avg_holding_days or 0) - 30) / 30) %}
+                                {% set _total = _ws + _plrs + _fs %}
                                 <div class="h5 mb-1 
-                                    {% if score.total_score >= 23 %}text-success
-                                    {% elif score.total_score >= 20 %}text-info
-                                    {% elif score.total_score >= 18 %}text-warning
+                                    {% if _total >= 23 %}text-success
+                                    {% elif _total >= 20 %}text-info
+                                    {% elif _total >= 18 %}text-warning
                                     {% else %}text-danger{% endif %}">
-                                    {{ score.total_score }}分
+                                    {{ '%.1f'|format(_total) }}分
                                 </div>
+                                {% set _rating = 'D' %}
+                                {% if _total >= 26 %}{% set _rating = 'A+' %}
+                                {% elif _total >= 23 %}{% set _rating = 'A' %}
+                                {% elif _total >= 20 %}{% set _rating = 'B' %}
+                                {% elif _total >= 18 %}{% set _rating = 'C' %}{% endif %}
                                 <div class="badge 
-                                    {% if score.total_score >= 26 %}bg-primary
-                                    {% elif score.total_score >= 23 %}bg-success
-                                    {% elif score.total_score >= 20 %}bg-info
-                                    {% elif score.total_score >= 18 %}bg-warning
-                                    {% else %}bg-danger{% endif %}">
-                                    {{ score.rating }}
-                                </div>
+                                    {% if _total >= 26 %}bg-primary
+                                    {% elif _total >= 23 %}bg-success
+                                    {% elif _total >= 20 %}bg-info
+                                    {% elif _total >= 18 %}bg-warning
+                                    {% else %}bg-danger{% endif %}">{{ _rating }}</div>
                                 {% if best_strategy and score.strategy_id == best_strategy.strategy_id %}
                                 <div class="mt-2">
                                     <small class="text-muted">
@@ -99,9 +107,9 @@
                         <label class="form-label">排序方式:</label>
                         <select class="form-select form-select-sm" id="sortSelect" onchange="updateSort()">
                             <option value="total_score" {{ 'selected' if sort_by == 'total_score' else '' }}>总分</option>
-                            <option value="win_rate_score" {{ 'selected' if sort_by == 'win_rate_score' else '' }}>胜率得分</option>
-                            <option value="profit_loss_ratio_score" {{ 'selected' if sort_by == 'profit_loss_ratio_score' else '' }}>盈亏比得分</option>
-                            <option value="frequency_score" {{ 'selected' if sort_by == 'frequency_score' else '' }}>频率得分</option>
+                            <option value="win_rate" {{ 'selected' if sort_by == 'win_rate' else '' }}>胜率</option>
+                            <option value="avg_profit_loss_ratio" {{ 'selected' if sort_by == 'avg_profit_loss_ratio' else '' }}>盈亏比</option>
+                            <option value="avg_holding_days" {{ 'selected' if sort_by == 'avg_holding_days' else '' }}>持仓天数</option>
                             <option value="strategy_code" {{ 'selected' if sort_by == 'strategy_code' else '' }}>策略名称</option>
                             <option value="win_rate" {{ 'selected' if sort_by == 'win_rate' else '' }}>胜率</option>
                             <option value="avg_profit_loss_ratio" {{ 'selected' if sort_by == 'avg_profit_loss_ratio' else '' }}>盈亏比</option>
@@ -161,19 +169,31 @@
                                     <strong>{{ score.strategy_name }}</strong>
                                 </td>
                                 <td>
+                                    {% set _ws = (score.stats.win_rate or 0)/10 %}
+                                    {% set _pl = (score.stats.avg_profit_loss_ratio == 9999.0 and 10) or (score.stats.avg_profit_loss_ratio or 0) %}
+                                    {% if _pl > 10 %}{% set _pl = 10 %}{% endif %}
+                                    {% set _fs = (score.stats.total_trades == 0 and 0) or (score.stats.avg_holding_days <= 1 and 8) or (score.stats.avg_holding_days <= 7 and 7) or (score.stats.avg_holding_days <= 30 and 6) or (6 - ((score.stats.avg_holding_days or 0) - 30) / 30) %}
+                                    {% set _tot = _ws + _pl + _fs %}
                                     <span class="badge 
-                                        {% if score.total_score >= 26 %}bg-primary
-                                        {% elif score.total_score >= 23 %}bg-success
-                                        {% elif score.total_score >= 20 %}bg-info
-                                        {% elif score.total_score >= 18 %}bg-warning
+                                        {% if _tot >= 26 %}bg-primary
+                                        {% elif _tot >= 23 %}bg-success
+                                        {% elif _tot >= 20 %}bg-info
+                                        {% elif _tot >= 18 %}bg-warning
                                         {% else %}bg-danger{% endif %}">
-                                        {{ score.total_score }}分
+                                        {{ '%.1f'|format(_tot) }}分
                                     </span>
                                 </td>
-                                <td>{{ score.rating }}</td>
-                                <td>{{ score.win_rate_score }}</td>
-                                <td>{{ score.profit_loss_ratio_score }}</td>
-                                <td>{{ score.frequency_score }}</td>
+                                <td>
+                                    {% set _rating = 'D' %}
+                                    {% if _tot >= 26 %}{% set _rating = 'A+' %}
+                                    {% elif _tot >= 23 %}{% set _rating = 'A' %}
+                                    {% elif _tot >= 20 %}{% set _rating = 'B' %}
+                                    {% elif _tot >= 18 %}{% set _rating = 'C' %}{% endif %}
+                                    {{ _rating }}
+                                </td>
+                                <td>{{ '%.1f'|format(_ws) }}</td>
+                                <td>{{ '%.1f'|format(_pl) }}</td>
+                                <td>{{ '%.1f'|format(_fs) }}</td>
                                 <td>{{ score.stats.total_trades }}</td>
                                 <td>{{ score.stats.win_rate }}%</td>
                                 <td>{{ score.stats.avg_profit_loss_ratio }}:1</td>
@@ -186,9 +206,9 @@
                                 <td>
                                     {% if loop.index == 1 %}
                                     <span class="badge bg-success">👑 最佳</span>
-                                    {% elif score.total_score >= 20 %}
+                                    {% elif _tot >= 20 %}
                                     <span class="badge bg-info">推荐</span>
-                                    {% elif score.total_score >= 18 %}
+                                    {% elif _tot >= 18 %}
                                     <span class="badge bg-warning">可考虑</span>
                                     {% else %}
                                     <span class="badge bg-danger">不建议</span>
@@ -227,32 +247,50 @@
                         <h6>表现分析</h6>
                         {% set best = strategy_scores[0] %}
                         {% set worst = strategy_scores[-1] %}
+                        {% set best_ws = (best.stats.win_rate or 0) / 10 %}
+                        {% set best_pl = (best.stats.avg_profit_loss_ratio == 9999.0 and 10) or (best.stats.avg_profit_loss_ratio or 0) %}
+                        {% if best_pl > 10 %}{% set best_pl = 10 %}{% endif %}
+                        {% set best_fs = (best.stats.total_trades == 0 and 0) or (best.stats.avg_holding_days <= 1 and 8) or (best.stats.avg_holding_days <= 7 and 7) or (best.stats.avg_holding_days <= 30 and 6) or (6 - ((best.stats.avg_holding_days or 0) - 30) / 30) %}
+                        {% set best_tot = best_ws + best_pl + best_fs %}
+                        {% set worst_ws = (worst.stats.win_rate or 0) / 10 %}
+                        {% set worst_pl = (worst.stats.avg_profit_loss_ratio == 9999.0 and 10) or (worst.stats.avg_profit_loss_ratio or 0) %}
+                        {% if worst_pl > 10 %}{% set worst_pl = 10 %}{% endif %}
+                        {% set worst_fs = (worst.stats.total_trades == 0 and 0) or (worst.stats.avg_holding_days <= 1 and 8) or (worst.stats.avg_holding_days <= 7 and 7) or (worst.stats.avg_holding_days <= 30 and 6) or (6 - ((worst.stats.avg_holding_days or 0) - 30) / 30) %}
+                        {% set worst_tot = worst_ws + worst_pl + worst_fs %}
                         <ul class="small">
-                            <li><strong>最佳策略</strong>：{{ best.strategy_name }} ({{ best.total_score }}分)</li>
-                            {% if best.total_score >= 23 %}
+                            <li><strong>最佳策略</strong>：{{ best.strategy_name }} ({{ '%.1f'|format(best_tot) }}分)</li>
+                            {% if best_tot >= 23 %}
                             <li class="text-success">该策略在此标的上表现优秀，建议重点使用</li>
-                            {% elif best.total_score >= 18 %}
+                            {% elif best_tot >= 18 %}
                             <li class="text-info">该策略在此标的上表现合格，可以考虑使用</li>
                             {% else %}
                             <li class="text-warning">所有策略在此标的上表现一般，需要谨慎</li>
                             {% endif %}
-                            <li><strong>待改进策略</strong>：{{ worst.strategy_name }} ({{ worst.total_score }}分)</li>
+                            <li><strong>待改进策略</strong>：{{ worst.strategy_name }} ({{ '%.1f'|format(worst_tot) }}分)</li>
                         </ul>
                     </div>
                     <div class="col-md-6">
                         <h6>投资建议</h6>
                         <ul class="small">
-                            {% if best.total_score >= 23 %}
+                            {% if best_tot >= 23 %}
                             <li class="text-success">建议优先使用 {{ best.strategy_name }} 进行交易</li>
                             {% endif %}
-                            {% set good_strategies = strategy_scores | selectattr('total_score', '>=', 20) | list %}
-                            {% if good_strategies | length > 1 %}
+                            {% set good_count = 0 %}
+                            {% for s in strategy_scores %}
+                                {% set __ws = (s.stats.win_rate or 0)/10 %}
+                                {% set __pl = (s.stats.avg_profit_loss_ratio == 9999.0 and 10) or (s.stats.avg_profit_loss_ratio or 0) %}
+                                {% if __pl > 10 %}{% set __pl = 10 %}{% endif %}
+                                {% set __fs = (s.stats.total_trades == 0 and 0) or (s.stats.avg_holding_days <= 1 and 8) or (s.stats.avg_holding_days <= 7 and 7) or (s.stats.avg_holding_days <= 30 and 6) or (6 - ((s.stats.avg_holding_days or 0) - 30) / 30) %}
+                                {% set __tot = __ws + __pl + __fs %}
+                                {% if __tot >= 20 %}{% set good_count = good_count + 1 %}{% endif %}
+                            {% endfor %}
+                            {% if good_count > 1 %}
                             <li class="text-info">可考虑组合使用多个优秀策略分散风险</li>
                             {% endif %}
-                            {% if best.win_rate_score < 6 %}
+                            {% if best_ws < 6 %}
                             <li class="text-warning">注意控制胜率，建议优化入场时机</li>
                             {% endif %}
-                            {% if best.profit_loss_ratio_score < 6 %}
+                            {% if best_pl < 6 %}
                             <li class="text-warning">注意优化盈亏比，建议调整止盈止损点</li>
                             {% endif %}
                         </ul>
@@ -271,9 +309,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // 绘制各策略的小三角图
     {% for score in strategy_scores %}
     drawTriangleScore('triangle-{{ score.strategy_id }}', 
-                     {{ score.win_rate_score }}, 
-                     {{ score.profit_loss_ratio_score }}, 
-                     {{ score.frequency_score }}, 
+                     {{ (score.stats.win_rate or 0) / 10 }}, 
+                     {{ ((score.stats.avg_profit_loss_ratio == 9999.0 and 10) or (score.stats.avg_profit_loss_ratio or 0)) }}, 
+                     {{ (score.stats.total_trades == 0 and 0) or (score.stats.avg_holding_days <= 1 and 8) or (score.stats.avg_holding_days <= 7 and 7) or (score.stats.avg_holding_days <= 30 and 6) or (6 - ((score.stats.avg_holding_days or 0) - 30) / 30) }}, 
                      false);
     {% endfor %}
 });

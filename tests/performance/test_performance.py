@@ -92,7 +92,7 @@ class TestPerformance(unittest.TestCase):
 
         # 查询所有交易
         start = time.perf_counter()
-        rows = self.trading_service.get_all_trades()
+        rows = self.trading_service.get_all_trades(compute_metrics=False)
         read_elapsed = time.perf_counter() - start
         self.assertGreaterEqual(len(rows), N)
         # 评价：一次全表查询应在 1.5 秒内完成

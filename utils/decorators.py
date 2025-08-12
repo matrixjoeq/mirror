@@ -6,6 +6,7 @@
 
 from functools import wraps
 from flask import request, jsonify
+from .exceptions import DomainError, ValidationError, NotFoundError, ConflictError, UnauthorizedError, ForbiddenError
 
 
 def require_confirmation_code(f):
@@ -31,11 +32,20 @@ def handle_errors(f):
     def decorated_function(*args, **kwargs):
         try:
             return f(*args, **kwargs)
+        except ValidationError as e:
+            return jsonify({'success': False, 'code': e.code, 'message': str(e)}), 400
+        except NotFoundError as e:
+            return jsonify({'success': False, 'code': e.code, 'message': str(e)}), 404
+        except ConflictError as e:
+            return jsonify({'success': False, 'code': e.code, 'message': str(e)}), 409
+        except UnauthorizedError as e:
+            return jsonify({'success': False, 'code': e.code, 'message': str(e)}), 401
+        except ForbiddenError as e:
+            return jsonify({'success': False, 'code': e.code, 'message': str(e)}), 403
+        except DomainError as e:
+            return jsonify({'success': False, 'code': e.code, 'message': str(e)}), 400
         except Exception as e:
-            return jsonify({
-                'success': False,
-                'message': f'操作失败: {str(e)}'
-            }), 500
+            return jsonify({'success': False, 'code': 'internal_error', 'message': f'操作失败: {str(e)}'}), 500
     
     return decorated_function
 

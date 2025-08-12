@@ -107,14 +107,7 @@ class DatabaseService:
                 )
             ''')
 
-            # 创建标签表
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS tags (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
+            # 统一使用 strategy_tags 表作为标签表（移除未被业务使用的 tags 表）
 
             # 创建策略标签关联表 
             cursor.execute('''
@@ -142,6 +135,17 @@ class DatabaseService:
             # 数据库升级处理
             self._handle_database_migrations(cursor)
             
+            # 常用索引（幂等创建）
+            try:
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_strategy_id ON trades(strategy_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_symbol_code ON trades(symbol_code)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_is_deleted ON trades(is_deleted)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_trade_details_trade ON trade_details(trade_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_trade_details_type_deleted ON trade_details(transaction_type, is_deleted)")
+            except sqlite3.OperationalError as e:
+                print(f"索引创建警告: {e}")
+
             conn.commit()
 
     def _handle_database_migrations(self, cursor):
@@ -183,6 +187,11 @@ class DatabaseService:
         """获取数据库连接的上下文管理器"""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
+        # 启用外键约束，保证参照完整性
+        try:
+            conn.execute("PRAGMA foreign_keys = ON")
+        except Exception:
+            pass
 
         # 安全包装：为 cursor() 提供带预执行校验的代理
         class _SafeCursor:
