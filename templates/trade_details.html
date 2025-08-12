@@ -182,7 +182,7 @@
                                     </td>
                                     <td>¥{{ "%.3f"|format(detail.price) }}</td>
                                     <td>{{ detail.quantity }} 股</td>
-                                    <td>¥{{ "%.3f"|format(detail.amount) }}</td>
+                                    <td>¥{{ "%.3f"|format(detail.price * detail.quantity) }}</td>
                                     <td>
                                         {% if detail.transaction_fee %}
                                             ¥{{ "%.2f"|format(detail.transaction_fee) }}
@@ -503,7 +503,7 @@
                     
                     <div class="alert alert-warning">
                         <i class="bi bi-exclamation-triangle"></i>
-                        <strong>注意：</strong>快捷卖出按照先进先出（FIFO）计算可卖份额，并综合涉及的买入记录计算本次卖出的整体盈亏。
+                        <strong>注意：</strong>快捷卖出收益按加权平均成本法（WAC）计算：基于所有买入的不含费加权平均价估算已卖出部分成本；可卖份额受当前剩余持仓上限约束；交易费用单独计入净利。
                     </div>
                 </form>
             </div>
