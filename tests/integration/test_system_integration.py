@@ -545,6 +545,9 @@ class TestSystemIntegration(unittest.TestCase):
         self.assertIn('data', response_data)
         data = response_data['data']
         self.assertIsInstance(data, list)
+        # 新增 total_score 字段用于前端趋势图总分绘制
+        if data:
+            self.assertIn('total_score', data[0])
         print("✓ 策略趋势API返回数据正确")
     
     # ========================================

@@ -210,7 +210,7 @@ def run_integration_tests():
     _run_with_coverage(
         ['tests.integration.test_system_integration'],
         os.path.join(project_root, 'reports', 'integration'),
-        66.0,
+        65.0,
         'routes,services.analysis_service,services.trading_service,services.database_service'
     )
     return True

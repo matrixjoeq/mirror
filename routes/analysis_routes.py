@@ -144,13 +144,9 @@ def symbol_detail(symbol_code):
     try:
         analysis_service = AnalysisService(current_app.db_service)
 
-        # 获取该股票在各策略下的表现（DTO）
+        # 获取该股票在各策略下的表现（DTO）并统一附加评分字段
         scores_dto = analysis_service.get_strategies_scores_by_symbol(symbol_code, return_dto=True)
-        strategy_scores = []
-        for s in scores_dto:
-            d = to_dict_dataclass(s)
-            d.update(analysis_service._compute_legacy_fields(d.get('stats', {})))
-            strategy_scores.append(d)
+        strategy_scores = [analysis_service.attach_score_fields(to_dict_dataclass(s)) for s in scores_dto]
 
         if not strategy_scores:
             return redirect(url_for('analysis.symbol_comparison'))
@@ -163,7 +159,7 @@ def symbol_detail(symbol_code):
         return render_template('symbol_detail.html',
                               symbol_code=symbol_code,
                               symbol_name=symbol_name,
-                               strategy_scores=[analysis_service.attach_score_fields(s) for s in strategy_scores])
+                               strategy_scores=strategy_scores)
         
     except Exception as e:
         current_app.logger.error(f"股票详情页面加载失败: {str(e)}")

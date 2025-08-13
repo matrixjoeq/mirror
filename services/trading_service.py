@@ -497,7 +497,12 @@ class TradingService:
                 return True
 
         except Exception as e:
-            print(f"软删除交易失败: {str(e)}")
+            try:
+                from flask import current_app
+                current_app.logger.warning(f"软删除交易失败: {str(e)}")
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning(f"软删除交易失败: {str(e)}")
             return False
 
     def restore_trade(self, trade_id: int, confirmation_code: str, operator_note: str = '') -> bool:
@@ -526,7 +531,12 @@ class TradingService:
                 return True
 
         except Exception as e:
-            print(f"恢复交易失败: {str(e)}")
+            try:
+                from flask import current_app
+                current_app.logger.warning(f"恢复交易失败: {str(e)}")
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning(f"恢复交易失败: {str(e)}")
             return False
 
     def permanently_delete_trade(self, trade_id: int, confirmation_code: str,
@@ -549,7 +559,12 @@ class TradingService:
                 return True
 
         except Exception as e:
-            print(f"永久删除交易失败: {str(e)}")
+            try:
+                from flask import current_app
+                current_app.logger.warning(f"永久删除交易失败: {str(e)}")
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning(f"永久删除交易失败: {str(e)}")
             return False
 
     def get_deleted_trades(self, return_dto: bool = False) -> List[Dict[str, Any]]:
@@ -583,7 +598,12 @@ class TradingService:
             return True
 
         except Exception as e:
-            print(f"记录修改历史失败: {str(e)}")
+            try:
+                from flask import current_app
+                current_app.logger.warning(f"记录修改历史失败: {str(e)}")
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning(f"记录修改历史失败: {str(e)}")
             return False
 
     def get_trade_modifications(self, trade_id: int) -> List[Dict[str, Any]]:

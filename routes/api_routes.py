@@ -268,7 +268,7 @@ def get_strategy_trend():
         # 获取时间周期列表
         periods = analysis_service.get_time_periods(period_type)
         
-        # 计算每个周期的表现
+        # 计算每个周期的表现（附带统一评分字段，便于前端绘制总分趋势）
         trend_data = []
         for period in periods:
             start_date, end_date = analysis_service._get_period_date_range(period, period_type)
@@ -277,12 +277,14 @@ def get_strategy_trend():
                 start_date=start_date,
                 end_date=end_date
             )
+            score = analysis_service.attach_score_fields(score)
             
             trend_data.append({
                 'period': period,
                 'return_rate': score['stats']['total_return_rate'],
                 'win_rate': score['stats']['win_rate'],
-                'trades_count': score['stats']['total_trades']
+                'trades_count': score['stats']['total_trades'],
+                'total_score': score['total_score']
             })
         
         # 按时间排序

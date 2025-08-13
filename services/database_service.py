@@ -144,7 +144,12 @@ class DatabaseService:
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_trade_details_trade ON trade_details(trade_id)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_trade_details_type_deleted ON trade_details(transaction_type, is_deleted)")
             except sqlite3.OperationalError as e:
-                print(f"索引创建警告: {e}")
+                try:
+                    from flask import current_app
+                    current_app.logger.warning(f"索引创建警告: {e}")
+                except Exception:
+                    import logging
+                    logging.getLogger(__name__).warning(f"索引创建警告: {e}")
 
             conn.commit()
 
@@ -173,7 +178,12 @@ class DatabaseService:
             self._add_column_if_not_exists(cursor, 'trade_details', 'net_profit_pct', 'DECIMAL(8,4) DEFAULT 0')
             
         except sqlite3.OperationalError as e:
-            print(f"数据库迁移警告: {e}")
+            try:
+                from flask import current_app
+                current_app.logger.warning(f"数据库迁移警告: {e}")
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning(f"数据库迁移警告: {e}")
 
     def _add_column_if_not_exists(self, cursor, table_name, column_name, column_definition):
         """如果列不存在则添加"""
@@ -319,5 +329,10 @@ class DatabaseService:
                 conn.commit()
                 return True
         except Exception as e:
-            print(f"事务执行失败: {e}")
+            try:
+                from flask import current_app
+                current_app.logger.warning(f"事务执行失败: {e}")
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning(f"事务执行失败: {e}")
             return False
