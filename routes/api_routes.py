@@ -240,8 +240,8 @@ def get_strategy_score():
         start_date=start_date,
         end_date=end_date
     )
-    # 统一附加旧字段
-    score = analysis_service.attach_legacy_score_fields(score)
+    # 统一附加评分字段
+    score = analysis_service.attach_score_fields(score)
     
     return jsonify({
         'success': True,

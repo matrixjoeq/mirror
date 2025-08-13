@@ -23,7 +23,7 @@ def strategy_scores():
         scores_dto = analysis_service.get_strategy_scores(return_dto=True)
         strategies_raw = strategy_service.get_all_strategies(return_dto=True)
         # DTO → dict（模板内按 stats 动态计算评分显示）
-        scores_list = [to_dict_dataclass(s) for s in scores_dto]
+        scores_list = [analysis_service.attach_score_fields(to_dict_dataclass(s)) for s in scores_dto]
         strategies = dto_list_to_dicts(strategies_raw)
         # 将评分列表转换为字典格式，模板期望 {strategy_id: score}
         scores = {s['strategy_id']: s for s in scores_list}
@@ -52,14 +52,14 @@ def strategy_detail(strategy_id):
         
         # 计算策略评分（DTO）
         score_dto = analysis_service.calculate_strategy_score(strategy_id=strategy_id, return_dto=True)
-        strategy_score = to_dict_dataclass(score_dto)
+        strategy_score = analysis_service.attach_score_fields(to_dict_dataclass(score_dto))
         
         # 获取该策略下的股票评分
         sort_by = request.args.get('sort_by', 'total_return_rate')
         sort_order = request.args.get('sort_order', 'desc')
         
         symbol_scores_dto = analysis_service.get_symbol_scores_by_strategy(strategy_id=strategy_id, return_dto=True)
-        symbol_scores = [to_dict_dataclass(s) for s in symbol_scores_dto]
+        symbol_scores = [analysis_service.attach_score_fields(to_dict_dataclass(s)) for s in symbol_scores_dto]
         
         # 排序（对可能为 None 的字段进行兜底，避免 None 比较）
         reverse = (sort_order == 'desc')
@@ -163,7 +163,7 @@ def symbol_detail(symbol_code):
         return render_template('symbol_detail.html',
                               symbol_code=symbol_code,
                               symbol_name=symbol_name,
-                              strategy_scores=strategy_scores)
+                               strategy_scores=[analysis_service.attach_score_fields(s) for s in strategy_scores])
         
     except Exception as e:
         current_app.logger.error(f"股票详情页面加载失败: {str(e)}")
@@ -227,7 +227,7 @@ def time_detail(period):
 
         # 获取该时间段的策略表现
         scores_dto = analysis_service.get_strategies_scores_by_time_period(period, period_type, return_dto=True)
-        strategy_scores = [to_dict_dataclass(s) for s in scores_dto]
+        strategy_scores = [analysis_service.attach_score_fields(to_dict_dataclass(s)) for s in scores_dto]
 
         # 获取时间段汇总
         ps_dto = analysis_service.get_period_summary(period, period_type, return_dto=True)

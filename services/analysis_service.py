@@ -142,6 +142,21 @@ class AnalysisService:
             'total_score': float(total_score),
             'rating': rating,
         }
+
+    # 中期优化：提供公开的评分计算工具，供路由与 API 统一使用
+    def compute_score_fields(self, stats: Dict[str, Any]) -> Dict[str, Any]:
+        """基于统计数据计算评分三项与总分及评级。
+
+        输出字段：win_rate_score, profit_loss_ratio_score, frequency_score, total_score, rating
+        """
+        return self._compute_legacy_fields(stats or {})
+
+    def attach_score_fields(self, score: Dict[str, Any]) -> Dict[str, Any]:
+        """在评分字典上附加统一评分字段并返回（原地更新）。"""
+        if not score or 'stats' not in score:
+            return score
+        score.update(self.compute_score_fields(score['stats']))
+        return score
     
     def get_strategy_scores(self, return_dto: bool = False) -> List[Dict[str, Any]] | List[ScoreDTO]:
         """获取所有策略的评分"""

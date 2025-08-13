@@ -23,11 +23,10 @@
                     <div class="col-md-9">
                         <div class="row">
                             <div class="col-md-6">
-                                {% set ws = (strategy_score.stats.win_rate or 0) / 10 %}
-                                {% set plrs = (strategy_score.stats.avg_profit_loss_ratio == 9999.0 and 10) or (strategy_score.stats.avg_profit_loss_ratio or 0) %}
-                                {% if plrs > 10 %}{% set plrs = 10 %}{% endif %}
-                                {% set fs = (strategy_score.stats.total_trades == 0 and 0) or (strategy_score.stats.avg_holding_days <= 1 and 8) or (strategy_score.stats.avg_holding_days <= 7 and 7) or (strategy_score.stats.avg_holding_days <= 30 and 6) or (6 - ((strategy_score.stats.avg_holding_days or 0) - 30) / 30) %}
-                                {% set total = ws + plrs + fs %}
+                                {% set ws = strategy_score.win_rate_score %}
+                                {% set plrs = strategy_score.profit_loss_ratio_score %}
+                                {% set fs = strategy_score.frequency_score %}
+                                {% set total = strategy_score.total_score %}
                                 <h4 class="text-primary">{{ '%.1f'|format(total) }}分</h4>
                                 <span class="badge 
                                     {% if total >= 26 %}bg-primary
@@ -46,9 +45,9 @@
                                 <div class="mt-3">
                                     <div class="row">
                                         <div class="col-6">
-                                            <strong>胜率得分:</strong> {{ '%.1f'|format(ws) }}分<br>
-                                            <strong>盈亏比得分:</strong> {{ '%.1f'|format(plrs) }}分<br>
-                                            <strong>频率得分:</strong> {{ '%.1f'|format(fs) }}分
+                                             <strong>胜率得分:</strong> {{ '%.1f'|format(ws) }}分<br>
+                                             <strong>盈亏比得分:</strong> {{ '%.1f'|format(plrs) }}分<br>
+                                             <strong>频率得分:</strong> {{ '%.1f'|format(fs) }}分
                                         </div>
                                         <div class="col-6">
                                             <strong>交易总数:</strong> {{ strategy_score.stats.total_trades }}笔<br>
@@ -62,7 +61,7 @@
                             <div class="col-md-6">
                                 <h6>表现分析</h6>
                                 <div class="small">
-                                    {% if ws >= 8 %}
+                                     {% if ws >= 8 %}
                                     <div class="text-success"><i class="bi bi-check-circle"></i> 胜率表现优秀</div>
                                     {% elif ws >= 6 %}
                                     <div class="text-info"><i class="bi bi-info-circle"></i> 胜率表现合格</div>
@@ -213,17 +212,17 @@
 document.addEventListener('DOMContentLoaded', function() {
     // 绘制总体评分三角图
     drawTriangleScore('overall-triangle', 
-                     {{ ((strategy_score.stats.win_rate or 0) / 10) or 0 }}, 
-                     {{ (((strategy_score.stats.avg_profit_loss_ratio == 9999.0 and 10) or (strategy_score.stats.avg_profit_loss_ratio or 0)) or 0) }}, 
-                     {{ ((strategy_score.stats.total_trades == 0 and 0) or (strategy_score.stats.avg_holding_days and (strategy_score.stats.avg_holding_days <= 1 and 8) or (strategy_score.stats.avg_holding_days <= 7 and 7) or (strategy_score.stats.avg_holding_days <= 30 and 6)) or (6 - (((strategy_score.stats.avg_holding_days or 0) - 30) / 30))) or 0 }}, 
+                     {{ strategy_score.win_rate_score }}, 
+                     {{ strategy_score.profit_loss_ratio_score }}, 
+                     {{ strategy_score.frequency_score }}, 
                      true);
     
     // 绘制各标的的小三角图
     {% for score in symbol_scores %}
     drawTriangleScore('triangle-{{ score.symbol_code }}', 
-                     {{ ((score.stats.win_rate or 0) / 10) or 0 }}, 
-                     {{ (((score.stats.avg_profit_loss_ratio == 9999.0 and 10) or (score.stats.avg_profit_loss_ratio or 0)) or 0) }}, 
-                     {{ ((score.stats.total_trades == 0 and 0) or (score.stats.avg_holding_days and (score.stats.avg_holding_days <= 1 and 8) or (score.stats.avg_holding_days <= 7 and 7) or (score.stats.avg_holding_days <= 30 and 6)) or (6 - (((score.stats.avg_holding_days or 0) - 30) / 30))) or 0 }}, 
+                     {{ score.win_rate_score }}, 
+                     {{ score.profit_loss_ratio_score }}, 
+                     {{ score.frequency_score }}, 
                      false);
     {% endfor %}
 });

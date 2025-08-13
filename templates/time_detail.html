@@ -108,11 +108,10 @@
                                     <div class="card-body p-2">
                                         <i class="bi bi-{{ icon }} text-{{ color }} fs-4"></i>
                                         <div class="small">{{ score.strategy_name }}</div>
-                                        {% set _ws = (score.stats.win_rate or 0)/10 %}
-                                        {% set _pl = (score.stats.avg_profit_loss_ratio == 9999.0 and 10) or (score.stats.avg_profit_loss_ratio or 0) %}
-                                        {% if _pl > 10 %}{% set _pl = 10 %}{% endif %}
-                                        {% set _fs = (score.stats.total_trades == 0 and 0) or (score.stats.avg_holding_days <= 1 and 8) or (score.stats.avg_holding_days <= 7 and 7) or (score.stats.avg_holding_days <= 30 and 6) or (6 - ((score.stats.avg_holding_days or 0) - 30) / 30) %}
-                                        {% set _tot = _ws + _pl + _fs %}
+                                        {% set _ws = score.win_rate_score %}
+                                        {% set _pl = score.profit_loss_ratio_score %}
+                                        {% set _fs = score.frequency_score %}
+                                        {% set _tot = score.total_score %}
                                         <div class="h5 mb-1 
                                             {% if _tot >= 23 %}text-success
                                             {% elif _tot >= 20 %}text-info
@@ -227,11 +226,10 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% set _ws2 = (score.stats.win_rate or 0)/10 %}
-                                    {% set _pl2 = (score.stats.avg_profit_loss_ratio == 9999.0 and 10) or (score.stats.avg_profit_loss_ratio or 0) %}
-                                    {% if _pl2 > 10 %}{% set _pl2 = 10 %}{% endif %}
-                                    {% set _fs2 = (score.stats.total_trades == 0 and 0) or (score.stats.avg_holding_days <= 1 and 8) or (score.stats.avg_holding_days <= 7 and 7) or (score.stats.avg_holding_days <= 30 and 6) or (6 - ((score.stats.avg_holding_days or 0) - 30) / 30) %}
-                                    {% set _tot2 = _ws2 + _pl2 + _fs2 %}
+                                    {% set _ws2 = score.win_rate_score %}
+                                    {% set _pl2 = score.profit_loss_ratio_score %}
+                                    {% set _fs2 = score.frequency_score %}
+                                    {% set _tot2 = score.total_score %}
                                     <span class="badge 
                                         {% if _tot2 >= 26 %}bg-primary
                                         {% elif _tot2 >= 23 %}bg-success

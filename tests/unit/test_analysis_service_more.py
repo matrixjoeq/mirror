@@ -52,6 +52,25 @@ class TestAnalysisServiceMore(unittest.TestCase):
         # PF 混合含前面的盈利和本次亏损，应为有限数值
         self.assertGreater(pf_mix['stats']['avg_profit_loss_ratio'], 0.0)
 
+    def test_compute_score_fields_variants(self):
+        svc = AnalysisService(self.db)
+        # empty stats
+        out = svc.compute_score_fields({})
+        self.assertEqual(out['total_score'], 0.0)
+        self.assertEqual(out['rating'], 'D')
+        # perfect
+        out = svc.compute_score_fields({'win_rate': 100, 'avg_profit_loss_ratio': 9999.0, 'total_trades': 10, 'avg_holding_days': 1})
+        self.assertGreaterEqual(out['win_rate_score'], 10.0)
+        self.assertEqual(out['profit_loss_ratio_score'], 10.0)
+        self.assertEqual(out['frequency_score'], 8.0)
+        self.assertGreaterEqual(out['total_score'], 26.0)
+        self.assertEqual(out['rating'], 'A+')
+        # moderate
+        out = svc.compute_score_fields({'win_rate': 55, 'avg_profit_loss_ratio': 2.5, 'total_trades': 5, 'avg_holding_days': 10})
+        self.assertAlmostEqual(out['win_rate_score'], 5.5, places=1)
+        self.assertAlmostEqual(out['profit_loss_ratio_score'], 2.5, places=1)
+        self.assertEqual(out['frequency_score'], 6.0)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
