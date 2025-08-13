@@ -10,7 +10,7 @@ import time
 from flask import Flask
 
 from config import config
-from routes import main_bp, trading_bp, strategy_bp, analysis_bp, api_bp
+from routes import main_bp, trading_bp, strategy_bp, analysis_bp, api_bp, admin_bp
 
 
 def create_app(config_name=None):
@@ -30,6 +30,7 @@ def create_app(config_name=None):
     app.register_blueprint(strategy_bp)
     app.register_blueprint(analysis_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(admin_bp)
 
     # 初始化并挂载服务到 app（供路由通过 current_app 使用）
     from services import DatabaseService, TradingService, StrategyService, AnalysisService

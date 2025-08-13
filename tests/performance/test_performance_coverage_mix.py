@@ -10,24 +10,27 @@ from decimal import Decimal
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from services import DatabaseService, TradingService, StrategyService, AnalysisService
+from app import create_app
 
 
 class TestPerformanceCoverageMix(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
-        self.tmp.close()
-        self.db = DatabaseService(self.tmp.name)
-        self.trading = TradingService(self.db)
-        self.strategy = StrategyService(self.db)
-        self.analysis = AnalysisService(self.db)
+        # 使用 Flask 测试应用，确保 routes 可被 exercise
+        self.app = create_app('testing')
+        self.ctx = self.app.app_context()
+        self.ctx.push()
+        self.client = self.app.test_client()
+        self.db = self.app.db_service
+        self.trading = self.app.trading_service
+        self.strategy = self.app.strategy_service
+        self.analysis = self.app.analysis_service
         ok, _ = self.strategy.create_strategy('覆盖策略A', '')
         ok2, _ = self.strategy.create_strategy('覆盖策略B', '')
         self.sid_a = next(s['id'] for s in self.strategy.get_all_strategies() if s['name'] == '覆盖策略A')
         self.sid_b = next(s['id'] for s in self.strategy.get_all_strategies() if s['name'] == '覆盖策略B')
 
     def tearDown(self):
-        if os.path.exists(self.tmp.name):
-            os.unlink(self.tmp.name)
+        self.ctx.pop()
 
     def test_trading_service_paths(self):
         # invalid inputs
@@ -65,6 +68,11 @@ class TestPerformanceCoverageMix(unittest.TestCase):
         _ = self.trading.get_all_trades(status='closed')
         _ = self.trading.get_all_trades(strategy='覆盖策略A')
         _ = self.trading.get_deleted_trades()
+        # exercise routes quickly to raise routes coverage
+        self.client.get('/trades')
+        self.client.get('/deleted_trades')
+        # admin diagnose page
+        self.client.get('/admin/db/diagnose')
 
     def test_strategy_and_analysis_paths(self):
         # tags

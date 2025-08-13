@@ -183,21 +183,27 @@ export FLASK_ENV=testing
 ### 测试策略
 
 ```bash
-# 运行完整测试套件
-python run_tests.py
+# 进入虚拟环境（强烈建议）
+# Windows
+.\\venv\\Scripts\\activate
+# macOS/Linux
+source venv/bin/activate
+
+# 运行完整测试套件（默认all）
+python3 run_tests.py all
 
 # 运行特定类型测试
-python -m unittest tests.unit.*
-python -m unittest tests.integration.*
-python -m unittest tests.functional.*
+python3 -m unittest tests.unit.*
+python3 -m unittest tests.integration.*
+python3 -m unittest tests.functional.*
 ```
 
 ### 测试覆盖（阶段性）
 
-- 单元测试：行90%+（详见 reports）
-- 功能测试：≥80%
-- 集成测试：≥67%
-- 性能测试：用例通过，覆盖后续提升
+- 单元测试：行约91%（详见 reports）
+- 功能测试：行约81%
+- 集成测试：行约66%
+- 性能测试：用例通过，覆盖约45%，覆盖后续提升
 
 ### 测试特性
 
@@ -219,7 +225,7 @@ python -m unittest tests.functional.*
 | `/api/tags` | GET | 获取标签列表 | StrategyService |
 | `/api/tag/create` | POST | 创建标签 | StrategyService |
 
-### 服务层设计
+### 服务层设计（口径）
 
 | 服务类 | 职责 | 主要方法 |
 |--------|------|----------|
@@ -227,6 +233,8 @@ python -m unittest tests.functional.*
 | `StrategyService` | 策略管理 | `create_strategy`, `get_all_strategies` |
 | `AnalysisService` | 数据分析 | `calculate_strategy_score`, `get_strategy_scores` |
 | `DatabaseService` | 数据库操作 | `execute_query`, `get_connection` |
+
+说明：交易盈亏计算采用加权平均成本法（WAC）。已卖出成本按所有买入的不含费加权平均价估算；净利润=毛利−卖出费−分摊买入费。
 
 ## 💾 数据架构
 

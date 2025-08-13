@@ -178,7 +178,7 @@ def run_unit_tests():
     print_banner("单元测试 - 核心功能测试")
     
     # 使用 coverage + discover 运行整个单元测试包，来源限定为服务/模型/工具层
-    _run_discover_with_coverage('tests/unit', os.path.join(project_root, 'reports', 'unit'), 89.0, 'services,models,utils')
+    _run_discover_with_coverage('tests/unit', os.path.join(project_root, 'reports', 'unit'), 90.0, 'services,models,utils')
     return True
 
 
@@ -191,7 +191,7 @@ def run_functional_tests():
         'tests/functional',
         os.path.join(project_root, 'reports', 'functional'),
         80.0,
-        'routes,services.analysis_service,services.trading_service,services.database_service'
+        'models,routes,services,utils'
     )
     return True
 
@@ -211,8 +211,8 @@ def run_integration_tests():
     _run_with_coverage(
         ['tests.integration.test_system_integration'],
         os.path.join(project_root, 'reports', 'integration'),
-        64.0,
-        'routes,services.analysis_service,services.trading_service,services.database_service'
+        67.0,
+        'models,routes,services,utils'
     )
     return True
 
@@ -221,11 +221,14 @@ def run_performance_tests():
     """运行性能测试（统计覆盖率并校验阈值）"""
     print_banner("性能测试 - 性能与延迟")
     # 专注于性能下最相关的路径，避免统计噪声导致不必要稀释
-    _run_with_coverage(
-        ['tests.performance.test_performance', 'tests.performance.test_performance_more'],
+    # 性能覆盖统计口径：models,routes,services 全目录；阈值提高到 50%
+    # 使用 discover 覆盖整个性能测试包，自动包含新增的性能测试（例如 routes smoke，用于提升覆盖率）
+    _run_discover_with_coverage(
+        'tests/performance',
         os.path.join(project_root, 'reports', 'performance'),
-        40.0,
-        'services'
+        50.0,
+        'models,routes,services,utils',
+        pattern='test_*.py'
     )
     return True
 

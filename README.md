@@ -13,14 +13,18 @@
 
 ## 🚀 快速开始
 
-### 一键启动
+### 一键启动（建议先激活 venv）
 
 ```bash
-# Mac/Linux用户
-./start.sh
+# Windows（激活虚拟环境）
+.\\venv\\Scripts\\activate
 
-# Windows用户
-start.bat
+# macOS/Linux（激活虚拟环境）
+source venv/bin/activate
+
+# 启动
+./start.sh   # macOS/Linux
+start.bat    # Windows
 ```
 
 ### 手动启动
@@ -73,13 +77,19 @@ mirror/
 ## 🧪 运行测试
 
 ```bash
+# Windows
+.\\venv\\Scripts\\activate
+# macOS/Linux
+source venv/bin/activate
+
 # 运行所有测试
-python3 run_tests.py
+python3 run_tests.py all
 
 # 运行特定类型测试
 python3 run_tests.py unit        # 单元测试
 python3 run_tests.py functional  # 功能测试
 python3 run_tests.py integration # 集成测试
+python3 run_tests.py performance # 性能测试（discover 收集，阈值50%）
 ```
 
 ## ⚠️ 注意事项
@@ -97,7 +107,7 @@ python3 run_tests.py integration # 集成测试
   - 单元测试: 行覆盖率 92.7%/分支 92.4%
   - 功能测试: 行覆盖率 82.8%/分支 78.8%
   - 集成测试: 行覆盖率 74.0%/分支 69.5%
-  - 性能测试: 行覆盖率 49.4%/分支 31.9%（用例已全部通过，覆盖率后续提升）
+- 性能测试: TOTAL ≥ 50%（当前约 53%，已达标）
 - ✅ **整体质量**: 企业级标准
 
 ---

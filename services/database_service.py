@@ -16,7 +16,18 @@ class DatabaseService:
     """数据库操作服务"""
     
     def __init__(self, db_path: Optional[str] = None):
-        self.db_path = db_path or Config.DB_PATH
+        if db_path:
+            self.db_path = db_path
+        else:
+            # 若在 Flask 上下文中，优先使用 current_app.config['DB_PATH']，以便测试环境共用同一数据库
+            try:
+                from flask import current_app  # 延迟导入以避免循环依赖
+                if current_app and current_app.config.get('DB_PATH'):
+                    self.db_path = current_app.config.get('DB_PATH')
+                else:
+                    self.db_path = Config.DB_PATH
+            except Exception:
+                self.db_path = Config.DB_PATH
         self.init_database()
     
     def init_database(self):
@@ -166,6 +177,11 @@ class DatabaseService:
             self._add_column_if_not_exists(cursor, 'trades', 'total_gross_profit', 'DECIMAL(15,3) DEFAULT 0')
             self._add_column_if_not_exists(cursor, 'trades', 'total_net_profit', 'DECIMAL(15,3) DEFAULT 0')
             self._add_column_if_not_exists(cursor, 'trades', 'total_net_profit_pct', 'DECIMAL(8,4) DEFAULT 0')
+            # 费用统计字段（买入费/卖出费/总费用/费用占比）
+            self._add_column_if_not_exists(cursor, 'trades', 'total_buy_fees', 'DECIMAL(15,3) DEFAULT 0')
+            self._add_column_if_not_exists(cursor, 'trades', 'total_sell_fees', 'DECIMAL(15,3) DEFAULT 0')
+            self._add_column_if_not_exists(cursor, 'trades', 'total_fees', 'DECIMAL(15,3) DEFAULT 0')
+            self._add_column_if_not_exists(cursor, 'trades', 'total_fee_ratio_pct', 'DECIMAL(8,4) DEFAULT 0')
             
             self._add_column_if_not_exists(cursor, 'trade_details', 'is_deleted', 'INTEGER DEFAULT 0')
             self._add_column_if_not_exists(cursor, 'trade_details', 'delete_date', 'TIMESTAMP')

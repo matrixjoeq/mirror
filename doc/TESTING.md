@@ -57,6 +57,7 @@ python3 run_tests.py
 python3 run_tests.py unit        # 单元测试
 python3 run_tests.py functional  # 功能测试
 python3 run_tests.py integration # 集成测试
+python3 run_tests.py performance # 性能测试（discover 全量收集，阈值50%）
 ```
 
 ### 环境准备（测试隔离）
@@ -90,6 +91,9 @@ python3 run_tests.py integration # 集成测试
 
 # 运行集成测试
     python3 run_tests.py integration
+    
+# 运行性能测试（基于 discover，自动收集 tests/performance/ 全部用例；阈值50%）
+    python3 run_tests.py performance
 ```
 
 #### 2. 直接使用unittest
@@ -156,6 +160,7 @@ python3 tests/integration/test_system_integration.py
 - 大量数据处理
 - 查询响应时间
 - 批量操作性能
+ - 核心 API 冒烟（覆盖路由与错误分支，用于提升 routes 覆盖）
 
 ## 📝 测试数据
 
