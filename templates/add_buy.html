@@ -1,202 +1,214 @@
 {% extends "base.html" %}
-
 {% block title %}新建买入交易 - 多策略系统分析{% endblock %}
-
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-plus-circle"></i> 新建买入交易
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if error %}
-                    <div class="alert alert-danger" role="alert">
-                        <i class="bi bi-exclamation-triangle"></i> {{ error }}
-                    </div>
-                {% endif %}
-                
-                <form method="POST" class="needs-validation" novalidate>
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <label for="strategy" class="form-label">
-                                <i class="bi bi-diagram-3"></i> 交易策略 <span class="text-danger">*</span>
-                            </label>
-                            <select class="form-select" id="strategy" name="strategy" required>
-                                {% for strategy in strategies_data %}
-                                <option value="{{ strategy.id }}" 
-                                        {{ 'selected' if default_strategy and default_strategy == strategy.id else '' }}
-                                        data-description="{{ strategy.description or '' }}"
-                                        data-tags="{{ strategy.tags|join(', ') }}">
-                                    {{ strategy.name }}
-                                    {% if strategy.tags %}
-                                        ({{ strategy.tags|join(', ') }})
-                                    {% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                            <div class="invalid-feedback">
-                                请选择交易策略
-                            </div>
-                            <div class="form-text">选择这笔交易所使用的策略类型</div>
-                            
-                            <!-- 策略描述显示区域 -->
-                            <div id="strategyDescription" class="mt-2" style="display: none;">
-                                <div class="alert alert-info">
-                                    <h6 class="alert-heading mb-2">策略描述</h6>
-                                    <p class="mb-2" id="descriptionText"></p>
-                                    <small class="text-muted">
-                                        <i class="bi bi-tags"></i> <span id="strategyTags"></span>
-                                    </small>
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-plus-circle"></i> 新建买入交易
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if error %}
+                        <div class="alert alert-danger" role="alert">
+                            <i class="bi bi-exclamation-triangle"></i> {{ error }}
+                        </div>
+                    {% endif %}
+                    <form method="POST" class="needs-validation" novalidate>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="strategy" class="form-label">
+                                    <i class="bi bi-diagram-3"></i> 交易策略 <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="strategy" name="strategy" required>
+                                    {% for strategy in strategies_data %}
+                                        <option value="{{ strategy.id }}"
+                                                {{ 'selected' if default_strategy and default_strategy == strategy.id else '' }}
+                                                data-description="{{ strategy.description or '' }}"
+                                                data-tags="{{ strategy.tags|join(', ') }}">
+                                            {{ strategy.name }}
+                                            {% if strategy.tags %}({{ strategy.tags|join(', ') }}){% endif %}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="invalid-feedback">请选择交易策略</div>
+                                <div class="form-text">选择这笔交易所使用的策略类型</div>
+                                <!-- 策略描述显示区域 -->
+                                <div id="strategyDescription" class="mt-2" style="display: none;">
+                                    <div class="alert alert-info">
+                                        <h6 class="alert-heading mb-2">策略描述</h6>
+                                        <p class="mb-2" id="descriptionText"></p>
+                                        <small class="text-muted">
+                                            <i class="bi bi-tags"></i> <span id="strategyTags"></span>
+                                        </small>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="symbol_code" class="form-label">
-                                <i class="bi bi-tag"></i> 标的代码 <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" class="form-control" id="symbol_code" name="symbol_code" 
-                                   placeholder="例如: 000001, AAPL" required>
-                            <div class="invalid-feedback">
-                                请输入标的代码
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="symbol_code" class="form-label">
+                                    <i class="bi bi-tag"></i> 标的代码 <span class="text-danger">*</span>
+                                </label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="symbol_code"
+                                       name="symbol_code"
+                                       placeholder="例如: 000001, AAPL"
+                                       required>
+                                <div class="invalid-feedback">请输入标的代码</div>
+                                <div class="form-text">股票代码、ETF代码等</div>
                             </div>
-                            <div class="form-text">股票代码、ETF代码等</div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="symbol_name" class="form-label">
-                                <i class="bi bi-card-text"></i> 标的名称 <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" class="form-control" id="symbol_name" name="symbol_name" 
-                                   placeholder="例如: 平安银行, 苹果" required>
-                            <div class="invalid-feedback">
-                                请输入标的名称
+                            <div class="col-md-6 mb-3">
+                                <label for="symbol_name" class="form-label">
+                                    <i class="bi bi-card-text"></i> 标的名称 <span class="text-danger">*</span>
+                                </label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="symbol_name"
+                                       name="symbol_name"
+                                       placeholder="例如: 平安银行, 苹果"
+                                       required>
+                                <div class="invalid-feedback">请输入标的名称</div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="price" class="form-label">
-                                <i class="bi bi-currency-dollar"></i> 买入价格 <span class="text-danger">*</span>
-                            </label>
-                            <div class="input-group">
-                                <span class="input-group-text">¥</span>
-                                <input type="number" class="form-control" id="price" name="price" 
-                                       step="0.001" min="0.001" placeholder="0.000" required>
-                                <div class="invalid-feedback">
-                                    请输入有效的买入价格
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="price" class="form-label">
+                                    <i class="bi bi-currency-dollar"></i> 买入价格 <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="number"
+                                           class="form-control"
+                                           id="price"
+                                           name="price"
+                                           step="0.001"
+                                           min="0.001"
+                                           placeholder="0.000"
+                                           required>
+                                    <div class="invalid-feedback">请输入有效的买入价格</div>
+                                </div>
+                                <div class="form-text">精确到小数点后3位</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="quantity" class="form-label">
+                                    <i class="bi bi-hash"></i> 买入数量 <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <input type="number"
+                                           class="form-control"
+                                           id="quantity"
+                                           name="quantity"
+                                           min="1"
+                                           placeholder="0"
+                                           required>
+                                    <span class="input-group-text">股/份</span>
+                                    <div class="invalid-feedback">请输入有效的买入数量</div>
                                 </div>
                             </div>
-                            <div class="form-text">精确到小数点后3位</div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="quantity" class="form-label">
-                                <i class="bi bi-hash"></i> 买入数量 <span class="text-danger">*</span>
-                            </label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" id="quantity" name="quantity" 
-                                       min="1" placeholder="0" required>
-                                <span class="input-group-text">股/份</span>
-                                <div class="invalid-feedback">
-                                    请输入有效的买入数量
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="transaction_date" class="form-label">
+                                    <i class="bi bi-calendar"></i> 买入日期 <span class="text-danger">*</span>
+                                </label>
+                                <input type="date"
+                                       class="form-control"
+                                       id="transaction_date"
+                                       name="transaction_date"
+                                       required>
+                                <div class="invalid-feedback">请选择买入日期</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="transaction_fee" class="form-label">
+                                    <i class="bi bi-receipt"></i> 交易手续费
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="number"
+                                           class="form-control"
+                                           id="transaction_fee"
+                                           name="transaction_fee"
+                                           step="0.01"
+                                           min="0"
+                                           placeholder="0.00"
+                                           value="0">
                                 </div>
+                                <div class="form-text">买入时的手续费成本</div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="transaction_date" class="form-label">
-                                <i class="bi bi-calendar"></i> 买入日期 <span class="text-danger">*</span>
-                            </label>
-                            <input type="date" class="form-control" id="transaction_date" name="transaction_date" 
-                                   required>
-                            <div class="invalid-feedback">
-                                请选择买入日期
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="buy_reason" class="form-label">
+                                    <i class="bi bi-journal-text"></i> 买入理由
+                                </label>
+                                <textarea class="form-control"
+                                          id="buy_reason"
+                                          name="buy_reason"
+                                          rows="3"
+                                          placeholder="记录买入的原因、分析依据或策略考虑..."></textarea>
+                                <div class="form-text">详细记录买入决策的理由，便于后续复盘</div>
                             </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="transaction_fee" class="form-label">
-                                <i class="bi bi-receipt"></i> 交易手续费
-                            </label>
-                            <div class="input-group">
-                                <span class="input-group-text">¥</span>
-                                <input type="number" class="form-control" id="transaction_fee" name="transaction_fee" 
-                                       step="0.01" min="0" placeholder="0.00" value="0">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">
+                                    <i class="bi bi-calculator"></i> 交易金额
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="amount_display"
+                                           readonly
+                                           placeholder="0.000">
+                                </div>
+                                <div class="form-text">价格 × 数量（不含手续费）</div>
                             </div>
-                            <div class="form-text">买入时的手续费成本</div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <label for="buy_reason" class="form-label">
-                                <i class="bi bi-journal-text"></i> 买入理由
-                            </label>
-                            <textarea class="form-control" id="buy_reason" name="buy_reason" rows="3" 
-                                      placeholder="记录买入的原因、分析依据或策略考虑..."></textarea>
-                            <div class="form-text">详细记录买入决策的理由，便于后续复盘</div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">
-                                <i class="bi bi-calculator"></i> 交易金额
-                            </label>
-                            <div class="input-group">
-                                <span class="input-group-text">¥</span>
-                                <input type="text" class="form-control" id="amount_display" readonly 
-                                       placeholder="0.000">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">
+                                    <i class="bi bi-cash-stack"></i> 总成本
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="total_cost_display"
+                                           readonly
+                                           placeholder="0.000">
+                                </div>
+                                <div class="form-text">交易金额 + 手续费</div>
                             </div>
-                            <div class="form-text">价格 × 数量（不含手续费）</div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">
-                                <i class="bi bi-cash-stack"></i> 总成本
-                            </label>
-                            <div class="input-group">
-                                <span class="input-group-text">¥</span>
-                                <input type="text" class="form-control" id="total_cost_display" readonly 
-                                       placeholder="0.000">
-                            </div>
-                            <div class="form-text">交易金额 + 手续费</div>
+                        <div class="alert alert-info" role="alert">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>提示：</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>如果该标的在同一策略下已有持仓，将会合并到现有交易中</li>
+                                <li>不同策略下的同一标的会分别记录，便于策略表现对比</li>
+                                <li>如果是首次买入该标的，将创建新的交易记录</li>
+                                <li>所有字段均为必填项</li>
+                            </ul>
                         </div>
-                    </div>
-                    
-                    <div class="alert alert-info" role="alert">
-                        <i class="bi bi-info-circle"></i>
-                        <strong>提示：</strong>
-                        <ul class="mb-0 mt-2">
-                            <li>如果该标的在同一策略下已有持仓，将会合并到现有交易中</li>
-                            <li>不同策略下的同一标的会分别记录，便于策略表现对比</li>
-                            <li>如果是首次买入该标的，将创建新的交易记录</li>
-                            <li>所有字段均为必填项</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <a href="{{ url_for('trading.trades') }}" class="btn btn-secondary me-md-2">
-                            <i class="bi bi-arrow-left"></i> 返回
-                        </a>
-                        <button type="submit" class="btn btn-success">
-                            <i class="bi bi-check-circle"></i> 确认买入
-                        </button>
-                    </div>
-                </form>
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ url_for('trading.trades') }}"
+                               class="btn btn-secondary me-md-2">
+                                <i class="bi bi-arrow-left"></i> 返回
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle"></i> 确认买入
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-</div>
 {% endblock %}
-
 {% block scripts %}
-<script>
+    <script>
 document.addEventListener('DOMContentLoaded', function() {
     // 设置默认日期为今天
     const today = new Date().toISOString().split('T')[0];
@@ -291,5 +303,5 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 300);
     });
 });
-</script>
+    </script>
 {% endblock %}

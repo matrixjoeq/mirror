@@ -56,5 +56,3 @@ def compute_trade_profit_metrics(
         'total_fees': float(total_fees),
         'total_fee_ratio_pct': float(total_fee_ratio),
     }
-
-

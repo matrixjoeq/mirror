@@ -209,11 +209,11 @@ class DatabaseService:
                 self._cur = real_cursor
                 self._validator = validator
 
-            def execute(self, query, params: Iterable = ()):  # type: ignore[override]
+            def execute(self, query, params: Iterable = ()): 
                 self._validator(query, params)
                 return self._cur.execute(query, params)
 
-            def executemany(self, query, seq_of_params):  # type: ignore[override]
+            def executemany(self, query, seq_of_params): 
                 # 对批量执行也进行语句级校验
                 self._validator(query, None, is_many=True)
                 return self._cur.executemany(query, seq_of_params)

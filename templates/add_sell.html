@@ -1,220 +1,244 @@
 {% extends "base.html" %}
-
 {% block title %}卖出交易 - 多策略系统分析{% endblock %}
-
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <!-- 交易信息概览 -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h6 class="card-title mb-0">
-                    <i class="bi bi-info-circle"></i> 交易信息
-                </h6>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-3">
-                        <strong>标的代码:</strong><br>
-                        <span class="badge bg-secondary">{{ trade.symbol_code }}</span>
-                    </div>
-                    <div class="col-md-3">
-                        <strong>标的名称:</strong><br>
-                        {{ trade.symbol_name }}
-                    </div>
-                    <div class="col-md-3">
-                        <strong>剩余数量:</strong><br>
-                        <span class="text-primary fw-bold">{{ trade.remaining_quantity }} 股</span>
-                    </div>
-                    <div class="col-md-3">
-                        <strong>平均成本:</strong><br>
-                        ¥{{ "%.3f"|format(trade.total_buy_amount / trade.total_buy_quantity) }}
-                        <small class="text-muted d-block">含手续费</small>
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- 交易信息概览 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> 交易信息
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>标的代码:</strong>
+                            <br>
+                            <span class="badge bg-secondary">{{ trade.symbol_code }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>标的名称:</strong>
+                            <br>
+                            {{ trade.symbol_name }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>剩余数量:</strong>
+                            <br>
+                            <span class="text-primary fw-bold">{{ trade.remaining_quantity }} 股</span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>平均成本:</strong>
+                            <br>
+                            ¥{{ "%.3f"|format(trade.total_buy_amount / trade.total_buy_quantity) }}
+                            <small class="text-muted d-block">含手续费</small>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <!-- 卖出表单 -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-dash-circle"></i> 卖出交易
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if error %}
-                    <div class="alert alert-danger" role="alert">
-                        <i class="bi bi-exclamation-triangle"></i> {{ error }}
-                    </div>
-                {% endif %}
-                
-                <form method="POST" class="needs-validation" novalidate>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="price" class="form-label">
-                                <i class="bi bi-currency-dollar"></i> 卖出价格 <span class="text-danger">*</span>
-                            </label>
-                            <div class="input-group">
-                                <span class="input-group-text">¥</span>
-                                <input type="number" class="form-control" id="price" name="price" 
-                                       step="0.001" min="0.001" placeholder="0.000" required>
-                                <div class="invalid-feedback">
-                                    请输入有效的卖出价格
+            <!-- 卖出表单 -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-dash-circle"></i> 卖出交易
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if error %}
+                        <div class="alert alert-danger" role="alert">
+                            <i class="bi bi-exclamation-triangle"></i> {{ error }}
+                        </div>
+                    {% endif %}
+                    <form method="POST" class="needs-validation" novalidate>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="price" class="form-label">
+                                    <i class="bi bi-currency-dollar"></i> 卖出价格 <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="number"
+                                           class="form-control"
+                                           id="price"
+                                           name="price"
+                                           step="0.001"
+                                           min="0.001"
+                                           placeholder="0.000"
+                                           required>
+                                    <div class="invalid-feedback">请输入有效的卖出价格</div>
                                 </div>
+                                <div class="form-text">精确到小数点后3位</div>
                             </div>
-                            <div class="form-text">精确到小数点后3位</div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="quantity" class="form-label">
-                                <i class="bi bi-hash"></i> 卖出数量 <span class="text-danger">*</span>
-                            </label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" id="quantity" name="quantity" 
-                                       min="1" max="{{ trade.remaining_quantity }}" placeholder="0" required>
-                                <span class="input-group-text">股/份</span>
-                                <div class="invalid-feedback">
-                                    请输入有效的卖出数量
+                            <div class="col-md-6 mb-3">
+                                <label for="quantity" class="form-label">
+                                    <i class="bi bi-hash"></i> 卖出数量 <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <input type="number"
+                                           class="form-control"
+                                           id="quantity"
+                                           name="quantity"
+                                           min="1"
+                                           max="{{ trade.remaining_quantity }}"
+                                           placeholder="0"
+                                           required>
+                                    <span class="input-group-text">股/份</span>
+                                    <div class="invalid-feedback">请输入有效的卖出数量</div>
                                 </div>
-                            </div>
-                            <div class="form-text">
-                                最多可卖出 {{ trade.remaining_quantity }} 股
-                                <button type="button" class="btn btn-link btn-sm p-0 ms-2" onclick="setMaxQuantity()">
-                                    全部卖出
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="transaction_date" class="form-label">
-                                <i class="bi bi-calendar"></i> 卖出日期 <span class="text-danger">*</span>
-                            </label>
-                            <input type="date" class="form-control" id="transaction_date" name="transaction_date" 
-                                   required>
-                            <div class="invalid-feedback">
-                                请选择卖出日期
-                            </div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="transaction_fee" class="form-label">
-                                <i class="bi bi-receipt"></i> 交易手续费
-                            </label>
-                            <div class="input-group">
-                                <span class="input-group-text">¥</span>
-                                <input type="number" class="form-control" id="transaction_fee" name="transaction_fee" 
-                                       step="0.01" min="0" placeholder="0.00" value="0">
-                            </div>
-                            <div class="form-text">卖出时的手续费成本</div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">
-                                <i class="bi bi-calculator"></i> 卖出金额
-                            </label>
-                            <div class="input-group">
-                                <span class="input-group-text">¥</span>
-                                <input type="text" class="form-control" id="sell_amount_display" readonly 
-                                       placeholder="0.000">
-                            </div>
-                            <div class="form-text">价格 × 数量（不含手续费）</div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">
-                                <i class="bi bi-cash"></i> 净收入
-                            </label>
-                            <div class="input-group">
-                                <span class="input-group-text">¥</span>
-                                <input type="text" class="form-control" id="net_amount_display" readonly 
-                                       placeholder="0.000">
-                            </div>
-                            <div class="form-text">卖出金额 - 手续费</div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <label for="sell_reason" class="form-label">
-                                <i class="bi bi-journal-text"></i> 卖出理由
-                            </label>
-                            <textarea class="form-control" id="sell_reason" name="sell_reason" rows="3" 
-                                      placeholder="记录卖出的原因、市场分析或策略调整..."></textarea>
-                            <div class="form-text">详细记录卖出决策的理由，便于后续复盘</div>
-                        </div>
-                    </div>
-                    
-                    <!-- 只在完全平仓时显示交易日志输入 -->
-                    <div class="row" id="trade_log_section" style="display: none;">
-                        <div class="col-md-12 mb-3">
-                            <label for="trade_log" class="form-label">
-                                <i class="bi bi-journal-check"></i> 交易日志 
-                                <span class="badge bg-info">完全平仓</span>
-                            </label>
-                            <textarea class="form-control" id="trade_log" name="trade_log" rows="4" 
-                                      placeholder="记录整个交易过程的总结、学到的经验、策略效果分析等..."></textarea>
-                            <div class="form-text">交易完全结束时填写，记录整个交易的经验和总结</div>
-                        </div>
-                    </div>
-                    
-                    <!-- 盈亏预览 -->
-                    <div class="card bg-light mb-3">
-                        <div class="card-header">
-                            <h6 class="card-title mb-0">
-                                <i class="bi bi-graph-up-arrow"></i> 盈亏预览
-                            </h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row text-center">
-                                <div class="col-md-3">
-                                    <strong>买入成本:</strong><br>
-                                    <span id="buy_cost_display">¥0.000</span>
-                                </div>
-                                <div class="col-md-3">
-                                    <strong>卖出金额:</strong><br>
-                                    <span id="sell_amount_preview">¥0.000</span>
-                                </div>
-                                <div class="col-md-3">
-                                    <strong>盈亏金额:</strong><br>
-                                    <span id="profit_loss_amount">¥0.000</span>
-                                </div>
-                                <div class="col-md-3">
-                                    <strong>盈亏比例:</strong><br>
-                                    <span id="profit_loss_pct">0.00%</span>
+                                <div class="form-text">
+                                    最多可卖出 {{ trade.remaining_quantity }} 股
+                                    <button type="button"
+                                            class="btn btn-link btn-sm p-0 ms-2"
+                                            onclick="setMaxQuantity()">全部卖出</button>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="alert alert-warning" role="alert">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        <strong>注意：</strong>
-                        <ul class="mb-0 mt-2">
-                            <li>卖出后将无法撤销，请确认价格和数量</li>
-                            <li>如果全部卖出，该笔交易将标记为已平仓</li>
-                            <li>系统会按交易顺序采用先进先出（FIFO）自动匹配卖出份额；一次卖出的盈亏按所涉及的每一笔买入综合计算整体盈亏</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <a href="{{ url_for('trading.trades') }}" class="btn btn-secondary me-md-2">
-                            <i class="bi bi-arrow-left"></i> 取消
-                        </a>
-                        <button type="submit" class="btn btn-warning">
-                            <i class="bi bi-check-circle"></i> 确认卖出
-                        </button>
-                    </div>
-                </form>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="transaction_date" class="form-label">
+                                    <i class="bi bi-calendar"></i> 卖出日期 <span class="text-danger">*</span>
+                                </label>
+                                <input type="date"
+                                       class="form-control"
+                                       id="transaction_date"
+                                       name="transaction_date"
+                                       required>
+                                <div class="invalid-feedback">请选择卖出日期</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="transaction_fee" class="form-label">
+                                    <i class="bi bi-receipt"></i> 交易手续费
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="number"
+                                           class="form-control"
+                                           id="transaction_fee"
+                                           name="transaction_fee"
+                                           step="0.01"
+                                           min="0"
+                                           placeholder="0.00"
+                                           value="0">
+                                </div>
+                                <div class="form-text">卖出时的手续费成本</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">
+                                    <i class="bi bi-calculator"></i> 卖出金额
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="sell_amount_display"
+                                           readonly
+                                           placeholder="0.000">
+                                </div>
+                                <div class="form-text">价格 × 数量（不含手续费）</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">
+                                    <i class="bi bi-cash"></i> 净收入
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="net_amount_display"
+                                           readonly
+                                           placeholder="0.000">
+                                </div>
+                                <div class="form-text">卖出金额 - 手续费</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="sell_reason" class="form-label">
+                                    <i class="bi bi-journal-text"></i> 卖出理由
+                                </label>
+                                <textarea class="form-control"
+                                          id="sell_reason"
+                                          name="sell_reason"
+                                          rows="3"
+                                          placeholder="记录卖出的原因、市场分析或策略调整..."></textarea>
+                                <div class="form-text">详细记录卖出决策的理由，便于后续复盘</div>
+                            </div>
+                        </div>
+                        <!-- 只在完全平仓时显示交易日志输入 -->
+                        <div class="row" id="trade_log_section" style="display: none;">
+                            <div class="col-md-12 mb-3">
+                                <label for="trade_log" class="form-label">
+                                    <i class="bi bi-journal-check"></i> 交易日志
+                                    <span class="badge bg-info">完全平仓</span>
+                                </label>
+                                <textarea class="form-control"
+                                          id="trade_log"
+                                          name="trade_log"
+                                          rows="4"
+                                          placeholder="记录整个交易过程的总结、学到的经验、策略效果分析等..."></textarea>
+                                <div class="form-text">交易完全结束时填写，记录整个交易的经验和总结</div>
+                            </div>
+                        </div>
+                        <!-- 盈亏预览 -->
+                        <div class="card bg-light mb-3">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-graph-up-arrow"></i> 盈亏预览
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-md-3">
+                                        <strong>买入成本:</strong>
+                                        <br>
+                                        <span id="buy_cost_display">¥0.000</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>卖出金额:</strong>
+                                        <br>
+                                        <span id="sell_amount_preview">¥0.000</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>盈亏金额:</strong>
+                                        <br>
+                                        <span id="profit_loss_amount">¥0.000</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>盈亏比例:</strong>
+                                        <br>
+                                        <span id="profit_loss_pct">0.00%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="alert alert-warning" role="alert">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <strong>注意：</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>卖出后将无法撤销，请确认价格和数量</li>
+                                <li>如果全部卖出，该笔交易将标记为已平仓</li>
+                                <li>系统会按交易顺序采用先进先出（FIFO）自动匹配卖出份额；一次卖出的盈亏按所涉及的每一笔买入综合计算整体盈亏</li>
+                            </ul>
+                        </div>
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ url_for('trading.trades') }}"
+                               class="btn btn-secondary me-md-2">
+                                <i class="bi bi-arrow-left"></i> 取消
+                            </a>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-check-circle"></i> 确认卖出
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-</div>
 {% endblock %}
-
 {% block scripts %}
-<script>
+    <script>
 // 用于盈亏预览的买入均价（不含手续费）
 const avgBuyPriceExFee = {{ "%.3f"|format(avg_buy_price_ex_fee|default(0.0)) }};
 const maxQuantity = {{ trade.remaining_quantity }};
@@ -299,5 +323,5 @@ function setMaxQuantity() {
     document.getElementById('quantity').value = maxQuantity;
     document.getElementById('quantity').dispatchEvent(new Event('input'));
 }
-</script>
+    </script>
 {% endblock %}

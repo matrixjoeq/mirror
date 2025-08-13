@@ -1,0 +1,17 @@
+{
+  "name": "mirror-static-checks",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "eslint": "^9.13.0",
+    "stylelint": "^16.8.0",
+    "stylelint-config-standard": "^36.0.0"
+  },
+  "scripts": {
+    "lint:js": "eslint \"static/js/**/*.js\"",
+    "lint:css": "stylelint \"static/**/*.css\""
+  }
+}
+
+

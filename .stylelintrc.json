@@ -1,0 +1,11 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "overrides": [
+    {
+      "files": ["static/**/*.css"],
+      "rules": {
+        "no-empty-source": null
+      }
+    }
+  ]
+}

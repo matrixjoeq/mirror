@@ -6,3 +6,6 @@ itsdangerous==2.1.2
 click==8.1.7
 blinker==1.6.3
 coverage==7.5.3
+mypy==1.10.0
+types-requests==2.32.0.20240622
+djlint==1.34.1

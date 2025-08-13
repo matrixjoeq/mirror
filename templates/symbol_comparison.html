@@ -1,141 +1,146 @@
 {% extends "base.html" %}
-
 {% block title %}标的策略比较 - 多策略系统分析{% endblock %}
-
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-bar-chart-steps"></i> 标的策略比较
-                    <a href="{{ url_for('analysis.strategy_scores') }}" class="btn btn-outline-secondary btn-sm float-end">
-                        <i class="bi bi-arrow-left"></i> 返回策略评分
-                    </a>
-                </h5>
-            </div>
-            <div class="card-body">
-                <p class="text-muted">
-                    按单一标的横向比较不同策略的表现，帮助您找到最适合特定标的的交易策略。
-                </p>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-bar-chart-steps"></i> 标的策略比较
+                        <a href="{{ url_for('analysis.strategy_scores') }}"
+                           class="btn btn-outline-secondary btn-sm float-end">
+                            <i class="bi bi-arrow-left"></i> 返回策略评分
+                        </a>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">按单一标的横向比较不同策略的表现，帮助您找到最适合特定标的的交易策略。</p>
+                </div>
             </div>
         </div>
     </div>
-</div>
-
-{% if symbols %}
-<div class="row">
-    {% for symbol in symbols %}
-    <div class="col-md-6 col-lg-4 mb-4">
-        <div class="card h-100">
-            <div class="card-header text-center">
-                <h6 class="card-title mb-0">{{ symbol.symbol_code }}</h6>
-                <small class="text-muted">{{ symbol.symbol_name }}</small>
-            </div>
-            <div class="card-body">
-                <!-- 预览各策略得分 -->
-                <div class="row text-center small mb-3">
-                    {% for s in strategies_data %}
-                    {% set icon = 'graph-up' %}
-                    {% set color = 'secondary' %}
-                    {% if '趋势' in s.name %}
-                        {% set icon = 'graph-up' %}
-                        {% set color = 'primary' %}
-                    {% elif '轮动' in s.name %}
-                        {% set icon = 'arrow-repeat' %}
-                        {% set color = 'success' %}
-                    {% elif '网格' in s.name %}
-                        {% set icon = 'grid' %}
-                        {% set color = 'warning' %}
-                    {% elif '套利' in s.name %}
-                        {% set icon = 'diagram-3' %}
-                        {% set color = 'info' %}
-                    {% endif %}
-                    <div class="col-6 mb-2">
-                        <div class="border rounded p-2">
-                            <i class="bi bi-{{ icon }} text-{{ color }}"></i>
-                            <div class="small text-muted">{{ s.name }}</div>
-                            <div class="badge bg-{{ color }} loading-score"
-                                 data-symbol="{{ symbol.symbol_code }}"
-                                 data-strategy="{{ s.id }}">-</div>
+    {% if symbols %}
+        <div class="row">
+            {% for symbol in symbols %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header text-center">
+                            <h6 class="card-title mb-0">{{ symbol.symbol_code }}</h6>
+                            <small class="text-muted">{{ symbol.symbol_name }}</small>
+                        </div>
+                        <div class="card-body">
+                            <!-- 预览各策略得分 -->
+                            <div class="row text-center small mb-3">
+                                {% for s in strategies_data %}
+                                    {% set icon = "graph-up" %}
+                                    {% set color = "secondary" %}
+                                    {% if '趋势' in s.name %}
+                                        {% set icon = "graph-up" %}
+                                        {% set color = "primary" %}
+                                    {% elif '轮动' in s.name %}
+                                        {% set icon = "arrow-repeat" %}
+                                        {% set color = "success" %}
+                                    {% elif '网格' in s.name %}
+                                        {% set icon = "grid" %}
+                                        {% set color = "warning" %}
+                                    {% elif '套利' in s.name %}
+                                        {% set icon = "diagram-3" %}
+                                        {% set color = "info" %}
+                                    {% endif %}
+                                    <div class="col-6 mb-2">
+                                        <div class="border rounded p-2">
+                                            <i class="bi bi-{{ icon }} text-{{ color }}"></i>
+                                            <div class="small text-muted">{{ s.name }}</div>
+                                            <div class="badge bg-{{ color }} loading-score"
+                                                 data-symbol="{{ symbol.symbol_code }}"
+                                                 data-strategy="{{ s.id }}">-</div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            <!-- 最佳策略预览 -->
+                            <div class="text-center">
+                                <div class="small text-muted mb-2">最佳策略</div>
+                                <div class="best-strategy-preview" data-symbol="{{ symbol.symbol_code }}">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer text-center">
+                            <a href="{{ url_for('analysis.symbol_detail', symbol_code=symbol.symbol_code) }}"
+                               class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-eye"></i> 详细分析
+                            </a>
                         </div>
                     </div>
-                    {% endfor %}
                 </div>
-                
-                <!-- 最佳策略预览 -->
-                <div class="text-center">
-                    <div class="small text-muted mb-2">最佳策略</div>
-                    <div class="best-strategy-preview" data-symbol="{{ symbol.symbol_code }}">
-                        <div class="spinner-border spinner-border-sm" role="status">
-                            <span class="visually-hidden">Loading...</span>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="bi bi-inbox" style="font-size: 3rem; color: #dee2e6;"></i>
+                        <h5 class="mt-3 text-muted">暂无标的数据</h5>
+                        <p class="text-muted">还没有已平仓的交易记录，无法进行策略比较分析。</p>
+                        <a href="{{ url_for('trading.add_buy') }}" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> 添加交易记录
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+    <!-- 比较说明 -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> 标的策略比较说明
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>比较维度</h6>
+                            <ul class="small">
+                                <li>
+                                    <strong>策略适应性</strong>：不同策略在同一标的上的表现差异
+                                </li>
+                                <li>
+                                    <strong>最优策略</strong>：基于总分识别最适合该标的的策略
+                                </li>
+                                <li>
+                                    <strong>风险收益</strong>：比较胜率、盈亏比和交易频率
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>应用价值</h6>
+                            <ul class="small">
+                                <li>
+                                    <strong>策略选择</strong>：为特定标的选择最适合的交易策略
+                                </li>
+                                <li>
+                                    <strong>组合优化</strong>：构建多策略投资组合
+                                </li>
+                                <li>
+                                    <strong>风险管理</strong>：识别策略在特定标的上的表现局限
+                                </li>
+                            </ul>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="card-footer text-center">
-                <a href="{{ url_for('analysis.symbol_detail', symbol_code=symbol.symbol_code) }}" 
-                   class="btn btn-outline-primary btn-sm">
-                    <i class="bi bi-eye"></i> 详细分析
-                </a>
-            </div>
         </div>
     </div>
-    {% endfor %}
-</div>
-{% else %}
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body text-center py-5">
-                <i class="bi bi-inbox" style="font-size: 3rem; color: #dee2e6;"></i>
-                <h5 class="mt-3 text-muted">暂无标的数据</h5>
-                <p class="text-muted">还没有已平仓的交易记录，无法进行策略比较分析。</p>
-                <a href="{{ url_for('trading.add_buy') }}" class="btn btn-primary">
-                    <i class="bi bi-plus-circle"></i> 添加交易记录
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- 比较说明 -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h6 class="card-title mb-0">
-                    <i class="bi bi-info-circle"></i> 标的策略比较说明
-                </h6>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>比较维度</h6>
-                        <ul class="small">
-                            <li><strong>策略适应性</strong>：不同策略在同一标的上的表现差异</li>
-                            <li><strong>最优策略</strong>：基于总分识别最适合该标的的策略</li>
-                            <li><strong>风险收益</strong>：比较胜率、盈亏比和交易频率</li>
-                        </ul>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>应用价值</h6>
-                        <ul class="small">
-                            <li><strong>策略选择</strong>：为特定标的选择最适合的交易策略</li>
-                            <li><strong>组合优化</strong>：构建多策略投资组合</li>
-                            <li><strong>风险管理</strong>：识别策略在特定标的上的表现局限</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
-
 {% block scripts %}
-<script>
+    <script>
 document.addEventListener('DOMContentLoaded', function() {
     // 异步加载每个标的的策略评分
     const symbols = [
@@ -212,5 +217,5 @@ async function loadSymbolScores(symbolCode) {
         bestPreview.innerHTML = '<div class="text-muted small">暂无数据</div>';
     }
 }
-</script>
+    </script>
 {% endblock %}

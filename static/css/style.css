@@ -2,7 +2,7 @@
 
 /* 全局样式 */
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     background-color: #f8f9fa;
 }
 
@@ -13,12 +13,12 @@ body {
 
 .card {
     border: none;
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    box-shadow: 0 0.125rem 0.25rem rgb(0 0 0 / 7.5%);
     transition: box-shadow 0.15s ease-in-out;
 }
 
 .card:hover {
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    box-shadow: 0 0.5rem 1rem rgb(0 0 0 / 15%);
 }
 
 /* 表格样式 */
@@ -35,7 +35,7 @@ body {
 }
 
 .table-hover tbody tr:hover {
-    background-color: rgba(0, 123, 255, 0.05);
+    background-color: rgb(0 123 255 / 5%);
 }
 
 /* 状态徽章样式 */
@@ -46,6 +46,7 @@ body {
 
 /* 标签管理样式优化：统一预定义与自定义标签高度 */
 .tag-item { line-height: 1; }
+
 .tag-item .badge {
     display: inline-flex;
     align-items: center;
@@ -54,8 +55,10 @@ body {
     border-radius: 9999px;   /* 胶囊外观 */
     line-height: 1;          /* 取消继承的行高差异 */
 }
+
 .tag-item .badge .tag-name,
 .tag-item .badge small { line-height: 1; }
+
 .tag-item .btn.btn-sm {
     padding: 0 0.25rem;      /* 更紧凑的按钮以不撑高徽章 */
     line-height: 1;
@@ -129,7 +132,7 @@ body {
 
 .form-control:focus {
     border-color: #80bdff;
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    box-shadow: 0 0 0 0.2rem rgb(0 123 255 / 25%);
 }
 
 .input-group-text {
@@ -177,7 +180,7 @@ body {
 }
 
 /* 响应式调整 */
-@media (max-width: 768px) {
+@media (width <= 768px) {
     .container-fluid {
         padding-left: 1rem;
         padding-right: 1rem;
@@ -200,7 +203,7 @@ body {
     }
 }
 
-@media (max-width: 576px) {
+@media (width <= 576px) {
     .navbar-brand {
         font-size: 1.1rem;
     }
@@ -398,16 +401,18 @@ body {
 /* 最佳策略标识样式 */
 .best-strategy-badge {
     animation: pulse 2s infinite;
-    box-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+    box-shadow: 0 0 10px rgb(255 193 7 / 50%);
 }
 
 @keyframes pulse {
     0% {
         transform: scale(1);
     }
+
     50% {
         transform: scale(1.05);
     }
+
     100% {
         transform: scale(1);
     }
@@ -415,5 +420,5 @@ body {
 
 .border-3 {
     border-width: 3px !important;
-    box-shadow: 0 0 15px rgba(0, 123, 255, 0.3);
+    box-shadow: 0 0 15px rgb(0 123 255 / 30%);
 }

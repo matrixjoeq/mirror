@@ -23,15 +23,15 @@ def get_period_date_range(period: str, period_type: str = 'year') -> Tuple[str, 
     elif period_type == 'quarter':
         # 格式: 2024-Q1
         year, quarter = period.split('-Q')
-        quarter = int(quarter)
+        q = int(quarter)
         
-        if quarter == 1:
+        if q == 1:
             start_date = f"{year}-01-01"
             end_date = f"{year}-03-31"
-        elif quarter == 2:
+        elif q == 2:
             start_date = f"{year}-04-01"
             end_date = f"{year}-06-30"
-        elif quarter == 3:
+        elif q == 3:
             start_date = f"{year}-07-01"
             end_date = f"{year}-09-30"
         else:  # quarter == 4

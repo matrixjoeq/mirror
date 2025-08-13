@@ -36,7 +36,7 @@ class TestTradingRoutesMoreQuick(unittest.TestCase):
         # edit_trade GET 与 POST（POST重定向）
         r_edit_get = self.client.get(f'/edit_trade/{tid}')
         self.assertEqual(r_edit_get.status_code, 200)
-        r_edit_post = self.client.post(f'/edit_trade/{tid}', data={'noop': '1'}, follow_redirects=False)
+        r_edit_post = self.client.post(f'/edit_trade/{tid}', data={'symbol_name': 'NewName', 'modification_reason': 'test'}, follow_redirects=False)
         self.assertIn(r_edit_post.status_code, (302, 303))
 
     def test_trade_details_invalid_redirect(self):

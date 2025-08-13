@@ -4,7 +4,7 @@
 分析服务层
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, cast
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 
@@ -32,7 +32,7 @@ class AnalysisService:
             WHERE t.is_deleted = 0
         '''
         
-        params = []
+        params: List[Any] = []
         
         # 策略筛选
         if strategy_id:
@@ -161,13 +161,14 @@ class AnalysisService:
     def get_strategy_scores(self, return_dto: bool = False) -> List[Dict[str, Any]] | List[ScoreDTO]:
         """获取所有策略的评分"""
         strategies = self.strategy_service.get_all_strategies()
-        scores = []
+        scores: List[Dict[str, Any]] = []
         
         for strategy in strategies:
             score = self.calculate_strategy_score(strategy_id=strategy['id'])
-            score['strategy_id'] = strategy['id']
-            score['strategy_name'] = strategy['name']
-            scores.append(score)
+            if isinstance(score, dict):
+                score['strategy_id'] = strategy['id']
+                score['strategy_name'] = strategy['name']
+                scores.append(score)
         
         # 按总收益率排序
         scores.sort(key=lambda x: x['stats']['total_return_rate'], reverse=True)
@@ -200,16 +201,17 @@ class AnalysisService:
         
         symbols = self.db.execute_query(query, tuple(params))
         
-        scores = []
+        scores: List[Dict[str, Any]] = []
         for symbol in symbols:
             score = self.calculate_strategy_score(
                 strategy_id=strategy_id,
                 strategy=strategy,
                 symbol_code=symbol['symbol_code']
             )
-            score['symbol_code'] = symbol['symbol_code']
-            score['symbol_name'] = symbol['symbol_name']
-            scores.append(score)
+            if isinstance(score, dict):
+                score['symbol_code'] = symbol['symbol_code']
+                score['symbol_name'] = symbol['symbol_name']
+                scores.append(score)
         
         # 按总收益率排序
         scores.sort(key=lambda x: x['stats']['total_return_rate'], reverse=True)
@@ -238,7 +240,7 @@ class AnalysisService:
     def get_strategies_scores_by_symbol(self, symbol_code: str, return_dto: bool = False) -> List[Dict[str, Any]] | List[ScoreDTO]:
         """按股票获取策略评分"""
         strategies = self.strategy_service.get_all_strategies()
-        scores = []
+        scores: List[Dict[str, Any]] = []
         
         for strategy in strategies:
             score = self.calculate_strategy_score(
@@ -247,10 +249,12 @@ class AnalysisService:
             )
             
             # 只有该策略有该股票的交易时才添加
-            if score['stats']['total_trades'] > 0:
-                score['strategy_id'] = strategy['id']
-                score['strategy_name'] = strategy['name']
-                scores.append(score)
+            from typing import cast as _cast
+            score_d = _cast(Dict[str, Any], score)
+            if score_d['stats']['total_trades'] > 0:
+                score_d['strategy_id'] = strategy['id']
+                score_d['strategy_name'] = strategy['name']
+                scores.append(score_d)
         
         # 按总收益率排序
         scores.sort(key=lambda x: x['stats']['total_return_rate'], reverse=True)
@@ -299,7 +303,7 @@ class AnalysisService:
         start_date, end_date = self._get_period_date_range(period, period_type)
         
         strategies = self.strategy_service.get_all_strategies()
-        scores = []
+        scores: List[Dict[str, Any]] = []
         
         for strategy in strategies:
             score = self.calculate_strategy_score(
@@ -309,7 +313,7 @@ class AnalysisService:
             )
             
             # 只有该策略在该时期有交易时才添加
-            if score['stats']['total_trades'] > 0:
+            if isinstance(score, dict) and score['stats']['total_trades'] > 0:
                 score['strategy_id'] = strategy['id']
                 score['strategy_name'] = strategy['name']
                 scores.append(score)
@@ -329,7 +333,9 @@ class AnalysisService:
             end_date=end_date
         )
         if return_dto:
-            return ScoreDTO(strategy_id=None, strategy_name=None, stats=result['stats'])
+            from typing import cast as _cast
+            res_d = _cast(Dict[str, Any], result)
+            return ScoreDTO(strategy_id=None, strategy_name=None, stats=res_d['stats'])
         return result
     
     def _calculate_performance_metrics(self, trades) -> Dict[str, Any]:

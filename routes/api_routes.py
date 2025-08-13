@@ -5,6 +5,7 @@ API路由
 """
 
 from flask import Blueprint, jsonify, request, current_app
+from typing import Any, cast
 
 from services import StrategyService, AnalysisService
 from services.trading_service import TradingService
@@ -17,7 +18,8 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 @handle_errors
 def get_strategies():
     """获取所有策略的API"""
-    strategy_service = StrategyService(current_app.db_service)
+    app = cast(Any, current_app)
+    strategy_service = StrategyService(app.db_service)
     strategies = strategy_service.get_all_strategies(return_dto=True)
     from services.mappers import dto_list_to_dicts
     return jsonify({'success': True, 'data': dto_list_to_dicts(strategies)})
@@ -27,7 +29,8 @@ def get_strategies():
 @handle_errors
 def get_tags():
     """获取所有标签的API"""
-    strategy_service = StrategyService(current_app.db_service)
+    app = cast(Any, current_app)
+    strategy_service = StrategyService(app.db_service)
     tags = strategy_service.get_all_tags()
     
     return jsonify({
@@ -47,7 +50,8 @@ def symbol_lookup():
     if not symbol_code:
         return jsonify({'success': False, 'message': 'symbol_code 不能为空'}), 400
 
-    db = current_app.db_service
+    app = cast(Any, current_app)
+    db = app.db_service
     # 取最近更新的一条记录的名称
     row = db.execute_query(
         """
@@ -78,7 +82,8 @@ def symbol_lookup():
 @handle_errors
 def get_trade_detail(detail_id: int):
     """获取单条交易明细，便于前端弹窗回填。"""
-    db = current_app.db_service
+    app = cast(Any, current_app)
+    db = app.db_service
     row = db.execute_query(
         '''
         SELECT d.*, t.symbol_code, t.symbol_name
@@ -108,7 +113,8 @@ def quick_sell():
     - sell_reason: 卖出理由（可选）
     只会影响对应 trade_id 的那条交易。
     """
-    trading_service = TradingService(current_app.db_service)
+    app = cast(Any, current_app)
+    trading_service = TradingService(app.db_service)
 
     form = request.form if not request.is_json else request.json
 
@@ -163,7 +169,8 @@ def quick_sell():
 @handle_errors
 def create_tag():
     """创建标签的API"""
-    strategy_service = StrategyService(current_app.db_service)
+    app = cast(Any, current_app)
+    strategy_service = StrategyService(app.db_service)
     
     name = request.form.get('name') or (request.json.get('name') if request.is_json else None)
     
@@ -185,7 +192,8 @@ def create_tag():
 @handle_errors
 def update_tag(tag_id):
     """更新标签的API"""
-    strategy_service = StrategyService(current_app.db_service)
+    app = cast(Any, current_app)
+    strategy_service = StrategyService(app.db_service)
     
     # 兼容前端可能传递的 name 或 new_name
     new_name = (
@@ -224,7 +232,8 @@ def delete_tag(tag_id):
 @handle_errors
 def get_strategy_score():
     """获取策略评分的API"""
-    analysis_service = AnalysisService(current_app.db_service)
+    app = cast(Any, current_app)
+    analysis_service = AnalysisService(app.db_service)
     
     # 获取查询参数
     strategy_id = request.args.get('strategy_id', type=int)
@@ -253,7 +262,8 @@ def get_strategy_score():
 @handle_errors
 def get_strategy_trend():
     """获取策略趋势数据的API"""
-    analysis_service = AnalysisService(current_app.db_service)
+    app = cast(Any, current_app)
+    analysis_service = AnalysisService(app.db_service)
     
     strategy_id = request.args.get('strategy_id', type=int)
     period_type = request.args.get('period_type', 'month')  # year, quarter, month

@@ -1,266 +1,283 @@
 {% extends "base.html" %}
-
 {% block title %}已删除交易记录 - 多策略系统分析{% endblock %}
-
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2><i class="bi bi-trash"></i> 已删除交易记录</h2>
-            <div>
-                <a href="{{ url_for('trading.trades') }}" class="btn btn-outline-primary">
-                    <i class="bi bi-arrow-left"></i> 返回交易列表
-                </a>
-                <button class="btn btn-success" id="batchRestoreBtn" disabled>
-                    <i class="bi bi-arrow-clockwise"></i> 批量恢复
-                </button>
-                <button class="btn btn-danger" id="batchPermanentDeleteBtn" disabled>
-                    <i class="bi bi-trash-fill"></i> 彻底删除
-                </button>
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    <i class="bi bi-trash"></i> 已删除交易记录
+                </h2>
+                <div>
+                    <a href="{{ url_for('trading.trades') }}"
+                       class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left"></i> 返回交易列表
+                    </a>
+                    <button class="btn btn-success" id="batchRestoreBtn" disabled>
+                        <i class="bi bi-arrow-clockwise"></i> 批量恢复
+                    </button>
+                    <button class="btn btn-danger" id="batchPermanentDeleteBtn" disabled>
+                        <i class="bi bi-trash-fill"></i> 彻底删除
+                    </button>
+                </div>
             </div>
+            {% if trades %}
+                <div class="alert alert-warning" role="alert">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>重要提示：</strong>以下是已删除的交易记录，可以选择恢复。恢复操作需要输入确认码。
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>
+                                            <input type="checkbox" id="selectAll" class="form-check-input">
+                                        </th>
+                                        <th>交易ID</th>
+                                        <th>标的</th>
+                                        <th>策略</th>
+                                        <th>状态</th>
+                                        <th>开仓日期</th>
+                                        <th>平仓日期</th>
+                                        <th>盈亏金额</th>
+                                        <th>盈亏比例</th>
+                                        <th>删除时间</th>
+                                        <th>删除原因</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for trade in trades %}
+                                        <tr>
+                                            <td>
+                                                <input type="checkbox"
+                                                       class="form-check-input trade-checkbox"
+                                                       value="{{ trade.id }}">
+                                            </td>
+                                            <td>{{ trade.id }}</td>
+                                            <td>
+                                                <div>
+                                                    <strong>{{ trade.symbol_code }}</strong>
+                                                    <small class="text-muted d-block">{{ trade.symbol_name }}</small>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary">{{ strategies[trade.strategy] }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-danger">已删除</span>
+                                            </td>
+                                            <td>{{ trade.open_date }}</td>
+                                            <td>{{ trade.close_date or '-' }}</td>
+                                            <td>
+                                                {% if trade.total_profit_loss > 0 %}
+                                                    <span class="text-danger fw-bold">+¥{{ "%.3f"|format(trade.total_profit_loss) }}</span>
+                                                {% elif trade.total_profit_loss < 0 %}
+                                                    <span class="text-success fw-bold">-¥{{ "%.3f"|format((trade.total_profit_loss | abs) ) }}</span>
+                                                {% else %}
+                                                    <span class="text-muted">¥0.000</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if trade.total_profit_loss_pct > 0 %}
+                                                    <span class="text-danger fw-bold">+{{ "%.2f"|format(trade.total_profit_loss_pct) }}%</span>
+                                                {% elif trade.total_profit_loss_pct < 0 %}
+                                                    <span class="text-success fw-bold">{{ "%.2f"|format(trade.total_profit_loss_pct) }}%</span>
+                                                {% else %}
+                                                    <span class="text-muted">0.00%</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <small class="text-muted">{{ trade.deleted_time }}</small>
+                                            </td>
+                                            <td>
+                                                <small class="text-muted" title="{{ trade.delete_reason }}">
+                                                    {{ (trade.delete_reason[:30] + '...') if trade.delete_reason and trade.delete_reason|length > 30 else (trade.delete_reason or '无') }}
+                                                </small>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex flex-column gap-1">
+                                                    <button class="btn btn-sm btn-outline-success restore-single-btn"
+                                                            data-trade-id="{{ trade.id }}">
+                                                        <i class="bi bi-arrow-clockwise"></i> 恢复
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-danger permanent-delete-single-btn"
+                                                            data-trade-id="{{ trade.id }}">
+                                                        <i class="bi bi-trash-fill"></i> 彻底删除
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-check-circle text-success" style="font-size: 4rem;"></i>
+                    <h3 class="mt-3">没有已删除的记录</h3>
+                    <p class="text-muted">所有交易记录都完好无损！</p>
+                    <a href="{{ url_for('trading.trades') }}" class="btn btn-primary">
+                        <i class="bi bi-arrow-left"></i> 返回交易列表
+                    </a>
+                </div>
+            {% endif %}
         </div>
-
-        {% if trades %}
-        <div class="alert alert-warning" role="alert">
-            <i class="bi bi-exclamation-triangle"></i>
-            <strong>重要提示：</strong>以下是已删除的交易记录，可以选择恢复。恢复操作需要输入确认码。
-        </div>
-
-        <div class="card">
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>
-                                    <input type="checkbox" id="selectAll" class="form-check-input">
-                                </th>
-                                <th>交易ID</th>
-                                <th>标的</th>
-                                <th>策略</th>
-                                <th>状态</th>
-                                <th>开仓日期</th>
-                                <th>平仓日期</th>
-                                <th>盈亏金额</th>
-                                <th>盈亏比例</th>
-                                <th>删除时间</th>
-                                <th>删除原因</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for trade in trades %}
-                            <tr>
-                                <td>
-                                    <input type="checkbox" class="form-check-input trade-checkbox" value="{{ trade.id }}">
-                                </td>
-                                <td>{{ trade.id }}</td>
-                                <td>
-                                    <div>
-                                        <strong>{{ trade.symbol_code }}</strong>
-                                        <small class="text-muted d-block">{{ trade.symbol_name }}</small>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="badge bg-secondary">{{ strategies[trade.strategy] }}</span>
-                                </td>
-                                <td>
-                                    <span class="badge bg-danger">已删除</span>
-                                </td>
-                                <td>{{ trade.open_date }}</td>
-                                <td>{{ trade.close_date or '-' }}</td>
-                                <td>
-                                    {% if trade.total_profit_loss > 0 %}
-                                        <span class="text-danger fw-bold">+¥{{ "%.3f"|format(trade.total_profit_loss) }}</span>
-                                    {% elif trade.total_profit_loss < 0 %}
-                                        <span class="text-success fw-bold">-¥{{ "%.3f"|format((trade.total_profit_loss | abs)) }}</span>
-                                    {% else %}
-                                        <span class="text-muted">¥0.000</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if trade.total_profit_loss_pct > 0 %}
-                                        <span class="text-danger fw-bold">+{{ "%.2f"|format(trade.total_profit_loss_pct) }}%</span>
-                                    {% elif trade.total_profit_loss_pct < 0 %}
-                                        <span class="text-success fw-bold">{{ "%.2f"|format(trade.total_profit_loss_pct) }}%</span>
-                                    {% else %}
-                                        <span class="text-muted">0.00%</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <small class="text-muted">{{ trade.deleted_time }}</small>
-                                </td>
-                                <td>
-                                    <small class="text-muted" title="{{ trade.delete_reason }}">
-                                        {{ (trade.delete_reason[:30] + '...') if trade.delete_reason and trade.delete_reason|length > 30 else (trade.delete_reason or '无') }}
-                                    </small>
-                                </td>
-                                <td>
-                                    <div class="d-flex flex-column gap-1">
-                                        <button class="btn btn-sm btn-outline-success restore-single-btn" data-trade-id="{{ trade.id }}">
-                                            <i class="bi bi-arrow-clockwise"></i> 恢复
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger permanent-delete-single-btn" data-trade-id="{{ trade.id }}">
-                                            <i class="bi bi-trash-fill"></i> 彻底删除
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+    </div>
+    <!-- 恢复确认对话框 -->
+    <div class="modal fade" id="restoreModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-arrow-clockwise text-success"></i> 恢复交易记录
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>恢复确认：</strong>此操作将恢复选中的交易记录，请输入确认码继续。
+                    </div>
+                    <form id="restoreForm">
+                        <div class="mb-3">
+                            <label class="form-label">恢复的交易数量:</label>
+                            <span id="restoreCount" class="fw-bold text-primary"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirmationCode" class="form-label">
+                                确认码 <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <input type="text"
+                                       class="form-control"
+                                       id="confirmationCode"
+                                       name="confirmation_code"
+                                       placeholder="请输入确认码"
+                                       required>
+                                <button type="button" class="btn btn-outline-secondary" id="generateCodeBtn">
+                                    <i class="bi bi-arrow-clockwise"></i> 生成
+                                </button>
+                            </div>
+                            <div class="form-text">确认码用于防止误操作，请点击生成按钮获取</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="operatorNote" class="form-label">操作备注</label>
+                            <textarea class="form-control"
+                                      id="operatorNote"
+                                      name="operator_note"
+                                      rows="2"
+                                      placeholder="可以记录此次恢复的原因或备注信息..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-success" id="confirmRestoreBtn">
+                        <i class="bi bi-check-circle"></i> 确认恢复
+                    </button>
                 </div>
             </div>
         </div>
-        {% else %}
-        <div class="text-center py-5">
-            <i class="bi bi-check-circle text-success" style="font-size: 4rem;"></i>
-            <h3 class="mt-3">没有已删除的记录</h3>
-            <p class="text-muted">所有交易记录都完好无损！</p>
-            <a href="{{ url_for('trading.trades') }}" class="btn btn-primary">
-                <i class="bi bi-arrow-left"></i> 返回交易列表
-            </a>
-        </div>
-        {% endif %}
     </div>
-</div>
-
-<!-- 恢复确认对话框 -->
-<div class="modal fade" id="restoreModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-arrow-clockwise text-success"></i> 恢复交易记录
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i>
-                    <strong>恢复确认：</strong>此操作将恢复选中的交易记录，请输入确认码继续。
+    <!-- 彻底删除确认对话框 -->
+    <div class="modal fade" id="permanentDeleteModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle"></i> 彻底删除交易记录
+                    </h5>
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            data-bs-dismiss="modal"></button>
                 </div>
-                
-                <form id="restoreForm">
-                    <div class="mb-3">
-                        <label class="form-label">恢复的交易数量:</label>
-                        <span id="restoreCount" class="fw-bold text-primary"></span>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <strong>⚠️ 危险操作：</strong>此操作将从数据库中永久删除选中的交易记录，<strong>无法恢复</strong>！
+                        请确认您真的要彻底删除这些数据。
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="confirmationCode" class="form-label">
-                            确认码 <span class="text-danger">*</span>
-                        </label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="confirmationCode" name="confirmation_code" 
-                                   placeholder="请输入确认码" required>
-                            <button type="button" class="btn btn-outline-secondary" id="generateCodeBtn">
-                                <i class="bi bi-arrow-clockwise"></i> 生成
-                            </button>
+                    <form id="permanentDeleteForm">
+                        <div class="mb-3">
+                            <label class="form-label">彻底删除的交易数量:</label>
+                            <span id="permanentDeleteCount" class="fw-bold text-danger"></span>
                         </div>
-                        <div class="form-text">确认码用于防止误操作，请点击生成按钮获取</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="operatorNote" class="form-label">操作备注</label>
-                        <textarea class="form-control" id="operatorNote" name="operator_note" rows="2" 
-                                  placeholder="可以记录此次恢复的原因或备注信息..."></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-success" id="confirmRestoreBtn">
-                    <i class="bi bi-check-circle"></i> 确认恢复
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 彻底删除确认对话框 -->
-<div class="modal fade" id="permanentDeleteModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">
-                    <i class="bi bi-exclamation-triangle"></i> 彻底删除交易记录
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle-fill"></i>
-                    <strong>⚠️ 危险操作：</strong>此操作将从数据库中永久删除选中的交易记录，<strong>无法恢复</strong>！
-                    请确认您真的要彻底删除这些数据。
+                        <div class="mb-3">
+                            <label for="permanentDeleteReason" class="form-label">
+                                删除原因 <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select"
+                                    id="permanentDeleteReason"
+                                    name="delete_reason"
+                                    required>
+                                <option value="">请选择删除原因</option>
+                                <option value="测试数据清理">测试数据清理</option>
+                                <option value="数据库存储优化">数据库存储优化</option>
+                                <option value="过期数据清理">过期数据清理</option>
+                                <option value="错误数据彻底删除">错误数据彻底删除</option>
+                                <option value="系统维护">系统维护</option>
+                                <option value="其他">其他</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirmationText" class="form-label">
+                                确认文字 <span class="text-danger">*</span>
+                            </label>
+                            <input type="text"
+                                   class="form-control"
+                                   id="confirmationText"
+                                   name="confirmation_text"
+                                   placeholder="请输入 PERMANENTLY DELETE"
+                                   required>
+                            <div class="form-text text-danger">
+                                <strong>请准确输入：PERMANENTLY DELETE</strong>（区分大小写）
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="permanentConfirmationCode" class="form-label">
+                                确认码 <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <input type="text"
+                                       class="form-control"
+                                       id="permanentConfirmationCode"
+                                       name="confirmation_code"
+                                       placeholder="请输入确认码"
+                                       required>
+                                <button type="button"
+                                        class="btn btn-outline-secondary"
+                                        id="generatePermanentCodeBtn">
+                                    <i class="bi bi-arrow-clockwise"></i> 生成
+                                </button>
+                            </div>
+                            <div class="form-text">确认码用于防止误操作，请点击生成按钮获取</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="permanentOperatorNote" class="form-label">操作备注</label>
+                            <textarea class="form-control"
+                                      id="permanentOperatorNote"
+                                      name="operator_note"
+                                      rows="2"
+                                      placeholder="可以记录此次彻底删除的具体原因或其他备注信息..."></textarea>
+                        </div>
+                    </form>
                 </div>
-                
-                <form id="permanentDeleteForm">
-                    <div class="mb-3">
-                        <label class="form-label">彻底删除的交易数量:</label>
-                        <span id="permanentDeleteCount" class="fw-bold text-danger"></span>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="permanentDeleteReason" class="form-label">
-                            删除原因 <span class="text-danger">*</span>
-                        </label>
-                        <select class="form-select" id="permanentDeleteReason" name="delete_reason" required>
-                            <option value="">请选择删除原因</option>
-                            <option value="测试数据清理">测试数据清理</option>
-                            <option value="数据库存储优化">数据库存储优化</option>
-                            <option value="过期数据清理">过期数据清理</option>
-                            <option value="错误数据彻底删除">错误数据彻底删除</option>
-                            <option value="系统维护">系统维护</option>
-                            <option value="其他">其他</option>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="confirmationText" class="form-label">
-                            确认文字 <span class="text-danger">*</span>
-                        </label>
-                        <input type="text" class="form-control" id="confirmationText" name="confirmation_text" 
-                               placeholder="请输入 PERMANENTLY DELETE" required>
-                        <div class="form-text text-danger">
-                            <strong>请准确输入：PERMANENTLY DELETE</strong>（区分大小写）
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="permanentConfirmationCode" class="form-label">
-                            确认码 <span class="text-danger">*</span>
-                        </label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="permanentConfirmationCode" name="confirmation_code" 
-                                   placeholder="请输入确认码" required>
-                            <button type="button" class="btn btn-outline-secondary" id="generatePermanentCodeBtn">
-                                <i class="bi bi-arrow-clockwise"></i> 生成
-                            </button>
-                        </div>
-                        <div class="form-text">确认码用于防止误操作，请点击生成按钮获取</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="permanentOperatorNote" class="form-label">操作备注</label>
-                        <textarea class="form-control" id="permanentOperatorNote" name="operator_note" rows="2" 
-                                  placeholder="可以记录此次彻底删除的具体原因或其他备注信息..."></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-danger" id="confirmPermanentDeleteBtn">
-                    <i class="bi bi-trash-fill"></i> 确认彻底删除
-                </button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-danger" id="confirmPermanentDeleteBtn">
+                        <i class="bi bi-trash-fill"></i> 确认彻底删除
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
 {% endblock %}
-
 {% block scripts %}
-<script>
+    <script>
 document.addEventListener('DOMContentLoaded', function() {
     // 全选功能
     const selectAllCheckbox = document.getElementById('selectAll');
@@ -540,5 +557,5 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-</script>
+    </script>
 {% endblock %}

@@ -253,16 +253,20 @@ def trade_details(trade_id):
 @trading_bp.route('/edit_trade/<int:trade_id>', methods=['GET', 'POST'])
 def edit_trade(trade_id):
     """编辑交易"""
-    # 这个功能比较复杂，先创建基础结构
     try:
         trading_service = TradingService(current_app.db_service)
+        strategy_service = StrategyService(current_app.db_service)
 
-        trade = trading_service.get_trade_by_id(trade_id)
+        # 统一获取交易对象，并检查删除状态
+        trade = trading_service.get_trade_by_id(trade_id, include_deleted=True)
         if not trade:
             return redirect(url_for('trading.trades'))
 
+        if trade.get('is_deleted'):
+            # 在这里可以增加 flash 消息
+            return redirect(url_for('trading.trades'))
+
         if request.method == 'GET':
-            strategy_service = StrategyService(current_app.db_service)
             strategies_raw = strategy_service.get_all_strategies(return_dto=True)
             strategies = dto_list_to_dicts(strategies_raw)
             details = dto_list_to_dicts(trading_service.get_trade_details(trade_id, return_dto=True))
@@ -277,8 +281,30 @@ def edit_trade(trade_id):
                 strategies_dict=strategies_dict,
             )
 
-        # POST 方法的实现需要更复杂的逻辑，暂时返回基础页面
-        return redirect(url_for('trading.trade_details', trade_id=trade_id))
+        elif request.method == 'POST':
+            # 处理表单提交
+            updates = {
+                'strategy_id': request.form.get('strategy_id', type=int),
+                'symbol_code': request.form.get('symbol_code'),
+                'symbol_name': request.form.get('symbol_name'),
+                'open_date': request.form.get('open_date'),
+            }
+            # 过滤掉 None 值，防止意外清空
+            updates = {k: v for k, v in updates.items() if v is not None}
+
+            modification_reason = request.form.get('modification_reason', '用户界面编辑')
+
+            success, message = trading_service.edit_trade(
+                trade_id=trade_id,
+                updates=updates,
+                modification_reason=modification_reason
+            )
+
+            if success:
+                return redirect(url_for('trading.trade_details', trade_id=trade_id))
+            else:
+                # 为空提交或其他错误时，保持与历史行为一致：重定向回编辑页
+                return redirect(url_for('trading.edit_trade', trade_id=trade_id))
 
     except Exception as e:
         current_app.logger.error(f"编辑交易失败: {str(e)}")

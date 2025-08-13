@@ -12,7 +12,7 @@ from .database_service import DatabaseService
 from .strategy_service import StrategyService
 from .trade_repository import TradeRepository
 from .trade_calculation import compute_trade_profit_metrics
-from .mappers import dict_to_trade_dto, TradeDTO
+from .mappers import dict_to_trade_dto
 from models.trading import Trade, TradeDetail, TradeModification
 from utils.helpers import generate_confirmation_code
 from utils.validators import validate_positive_decimal, validate_positive_int, validate_date_yyyy_mm_dd
@@ -130,10 +130,13 @@ class TradingService:
             if not ok_d:
                 return False, msg_d
 
-            # 获取交易信息
-            trade = self.get_trade_by_id(trade_id)
+            # 获取交易信息 (包含已删除的)
+            trade = self.get_trade_by_id(trade_id, include_deleted=True)
             if not trade:
                 return False, f"交易ID {trade_id} 不存在"
+
+            if trade.get('is_deleted'):
+                return False, "该交易已被删除，无法操作"
 
             if trade['status'] == 'closed':
                 return False, "该交易已平仓"
@@ -343,16 +346,15 @@ class TradingService:
             return [dict_to_trade_dto(t) for t in trade_dicts]
         return trade_dicts
 
-    def get_trade_by_id(self, trade_id: int) -> Optional[Dict[str, Any]]:
+    def get_trade_by_id(self, trade_id: int, include_deleted: bool = False) -> Optional[Dict[str, Any]]:
         """根据ID获取交易"""
-        query = '''
-            SELECT t.*, s.name as strategy_name
-            FROM trades t
-            LEFT JOIN strategies s ON t.strategy_id = s.id
-            WHERE t.id = ?
-        '''
+        query = "SELECT t.*, s.name as strategy_name FROM trades t LEFT JOIN strategies s ON t.strategy_id = s.id WHERE t.id = ?"
+        params = [trade_id]
 
-        trade = self.db.execute_query(query, (trade_id,), fetch_one=True)
+        if not include_deleted:
+            query += " AND t.is_deleted = 0"
+
+        trade = self.db.execute_query(query, tuple(params), fetch_one=True)
         return dict(trade) if trade else None
 
     def get_trade_overview_metrics(self, trade_id: int, return_dto: bool = False) -> Dict[str, Any]:
@@ -418,7 +420,7 @@ class TradingService:
         }
         return overview
 
-    def get_trade_details(self, trade_id: int, include_deleted: bool = False, return_dto: bool = False) -> List[Dict[str, Any]]:
+    def get_trade_details(self, trade_id: int, include_deleted: bool = False, return_dto: bool = False) -> List[Any]:
         """获取交易明细"""
         query = "SELECT * FROM trade_details WHERE trade_id = ?"
 
@@ -428,9 +430,9 @@ class TradingService:
         query += " ORDER BY transaction_date, created_at"
 
         details = self.db.execute_query(query, (trade_id,))
-        rows = [dict(detail) for detail in details]
+        rows: List[Dict[str, Any]] = [dict(detail) for detail in details]
         if return_dto:
-            from .mappers import TradeDetailDTO, dict_to_trade_detail_dto
+            from .mappers import dict_to_trade_detail_dto
             return [dict_to_trade_detail_dto(r) for r in rows]
         return rows
 
@@ -567,7 +569,7 @@ class TradingService:
                 logging.getLogger(__name__).warning(f"永久删除交易失败: {str(e)}")
             return False
 
-    def get_deleted_trades(self, return_dto: bool = False) -> List[Dict[str, Any]]:
+    def get_deleted_trades(self, return_dto: bool = False) -> List[Any]:
         """获取已删除的交易"""
         query = '''
             SELECT t.*, s.name as strategy_name
@@ -578,7 +580,7 @@ class TradingService:
         '''
 
         trades = self.db.execute_query(query)
-        rows = [dict(trade) for trade in trades]
+        rows: List[Dict[str, Any]] = [dict(trade) for trade in trades]
         if return_dto:
             return [dict_to_trade_dto(r) for r in rows]
         return rows
@@ -617,6 +619,49 @@ class TradingService:
         modifications = self.db.execute_query(query, (trade_id,))
         return [dict(mod) for mod in modifications]
 
+    def edit_trade(self, trade_id: int, updates: Dict[str, Any], modification_reason: str) -> Tuple[bool, str]:
+        """编辑交易主记录字段（如代码、名称、开仓日期、策略）
+        
+        注意：此方法不重算盈亏，仅用于修正录入错误。
+        """
+        # 获取交易信息 (包含已删除的)
+        trade = self.get_trade_by_id(trade_id, include_deleted=True)
+        if not trade:
+            return False, "交易不存在"
+
+        if trade.get('is_deleted'):
+            return False, "该交易已被删除，无法编辑"
+
+        # 准备更新
+        allowed_fields = ['strategy_id', 'symbol_code', 'symbol_name', 'open_date']
+        update_clauses = []
+        params = []
+        
+        for field, value in updates.items():
+            if field in allowed_fields:
+                update_clauses.append(f"{field} = ?")
+                params.append(value)
+        
+        if not update_clauses:
+            return False, "没有提供有效更新字段"
+            
+        # 记录修改历史
+        for field, value in updates.items():
+            if field in allowed_fields:
+                self.record_modification(
+                    trade_id, None, 'edit_trade', field, str(trade[field]), str(value), modification_reason
+                )
+
+        # 执行更新
+        query = f"UPDATE trades SET {', '.join(update_clauses)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        params.append(trade_id)
+        
+        try:
+            self.db.execute_query(query, tuple(params), fetch_all=False)
+            return True, "交易信息更新成功"
+        except Exception as e:
+            return False, f"更新交易信息失败: {e}"
+
     def update_trade_record(self, trade_id: int, detail_updates: List[Dict[str, Any]]) -> Tuple[bool, str]:
         """根据提供的明细更新列表，更新交易明细并重算汇总与盈亏。
 
@@ -629,10 +674,10 @@ class TradingService:
                 cursor = conn.cursor()
 
                 # 校验交易存在
-                cursor.execute("SELECT * FROM trades WHERE id = ?", (trade_id,))
+                cursor.execute("SELECT * FROM trades WHERE id = ? AND is_deleted = 0", (trade_id,))
                 trade_row = cursor.fetchone()
                 if not trade_row:
-                    return False, f"交易ID {trade_id} 不存在"
+                    return False, f"交易ID {trade_id} 不存在或已被删除"
 
                 # 逐条更新明细
                 for upd in detail_updates:

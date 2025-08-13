@@ -1,525 +1,629 @@
 {% extends "base.html" %}
-
 {% block title %}交易详情 - 多策略系统分析{% endblock %}
-
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <!-- 返回按钮 -->
-        <div class="mb-3">
-            <a href="{{ url_for('trading.trades') }}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> 返回交易列表
-            </a>
-        </div>
-        
-        <!-- 交易概览 -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-file-earmark-text"></i> 交易概览 - {{ trade.symbol_name }} ({{ trade.symbol_code }})
-                </h5>
+    <div class="row">
+        <div class="col-12">
+            <!-- 返回按钮 -->
+            <div class="mb-3">
+                <a href="{{ url_for('trading.trades') }}"
+                   class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> 返回交易列表
+                </a>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-3 mb-3">
-                        <h6 class="text-muted">交易状态</h6>
-                        {% if trade.status == 'open' %}
-                            <span class="badge bg-success fs-6">持仓中</span>
-                        {% else %}
-                            <span class="badge bg-info fs-6">已平仓</span>
-                        {% endif %}
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <h6 class="text-muted">开仓日期</h6>
-                        <span class="fw-bold">{{ trade.open_date }}</span>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <h6 class="text-muted">平仓日期</h6>
-                        {% if trade.close_date %}
-                            <span class="fw-bold">{{ trade.close_date }}</span>
-                        {% else %}
-                            <span class="text-muted">未平仓</span>
-                        {% endif %}
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <h6 class="text-muted">持仓天数</h6>
-                        {% if trade.holding_days %}
-                            <span class="fw-bold">{{ trade.holding_days }} 天</span>
-                        {% else %}
-                            <span class="fw-bold text-primary">持仓中</span>
-                        {% endif %}
-                    </div>
+            <!-- 交易概览 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-file-earmark-text"></i> 交易概览 - {{ trade.symbol_name }} ({{ trade.symbol_code }})
+                    </h5>
                 </div>
-                
-                <hr>
-                
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <h6 class="text-muted">买入信息</h6>
-                        <div>总买入: <span class="fw-bold">{{ overview.buy_qty }} 股</span></div>
-                        <div>总成交（不含费）: <span class="fw-bold">¥{{ "%.3f"|format(overview.buy_gross) }}</span></div>
-                        <div>总买入费用: <span class="fw-bold">¥{{ "%.2f"|format(overview.buy_fees) }}</span></div>
-                        <div>平均价（不含费）: <span class="fw-bold">¥{{ "%.3f"|format(overview.avg_buy_ex) }}</span></div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <h6 class="text-muted">卖出信息</h6>
-                        {% if overview.sell_qty > 0 %}
-                            <div>总卖出: <span class="fw-bold">{{ overview.sell_qty }} 股</span></div>
-                            <div>总成交（不含费）: <span class="fw-bold">¥{{ "%.3f"|format(overview.sell_gross) }}</span></div>
-                            <div>总卖出费用: <span class="fw-bold">¥{{ "%.2f"|format(overview.sell_fees) }}</span></div>
-                            <div>平均价（不含费）: <span class="fw-bold">¥{{ "%.3f"|format(overview.avg_sell_ex) }}</span></div>
-                        {% else %}
-                            <div class="text-muted">尚未卖出</div>
-                        {% endif %}
-                    </div>
-                    <div class="col-md-4 mb-3">
-                         <h6 class="text-muted">盈亏信息</h6>
-                        <div>剩余持仓: <span class="fw-bold text-primary">{{ trade.remaining_quantity }} 股</span></div>
-                        <div>毛利润: 
-                            {% if overview.gross_profit > 0 %}
-                                <span class="fw-bold text-danger">+¥{{ "%.3f"|format(overview.gross_profit) }}</span>
-                            {% elif overview.gross_profit < 0 %}
-                                <span class="fw-bold text-success">-¥{{ "%.3f"|format((overview.gross_profit | abs)) }}</span>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <h6 class="text-muted">交易状态</h6>
+                            {% if trade.status == 'open' %}
+                                <span class="badge bg-success fs-6">持仓中</span>
                             {% else %}
-                                <span class="fw-bold text-muted">¥0.000</span>
+                                <span class="badge bg-info fs-6">已平仓</span>
                             {% endif %}
                         </div>
-                        <div>毛利率: <span class="fw-bold">{{ "%.2f"|format(overview.gross_profit_rate) }}%</span></div>
-        
-                        <div>净利润: 
-                            {% if overview.net_profit > 0 %}
-                                <span class="fw-bold text-danger">+¥{{ "%.3f"|format(overview.net_profit) }}</span>
-                            {% elif overview.net_profit < 0 %}
-                                <span class="fw-bold text-success">-¥{{ "%.3f"|format((overview.net_profit | abs)) }}</span>
+                        <div class="col-md-3 mb-3">
+                            <h6 class="text-muted">开仓日期</h6>
+                            <span class="fw-bold">{{ trade.open_date }}</span>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <h6 class="text-muted">平仓日期</h6>
+                            {% if trade.close_date %}
+                                <span class="fw-bold">{{ trade.close_date }}</span>
                             {% else %}
-                                <span class="fw-bold text-muted">¥0.000</span>
+                                <span class="text-muted">未平仓</span>
                             {% endif %}
                         </div>
-                        <div>净利率: <span class="fw-bold">{{ "%.2f"|format(overview.net_profit_rate) }}%</span></div>
-                    </div>
-                </div>
-                
-                {% if trade.status == 'open' and trade.remaining_quantity > 0 %}
-                <hr>
-                <div class="text-center">
-                    <a href="{{ url_for('trading.add_sell', trade_id=trade.id) }}" class="btn btn-warning">
-                        <i class="bi bi-dash-circle"></i> 卖出股份
-                    </a>
-                </div>
-                {% elif trade.status == 'closed' %}
-                <hr>
-                <div class="text-center">
-                    <div class="d-flex gap-2 justify-content-center">
-                        <a href="{{ url_for('trading.edit_trade', trade_id=trade.id) }}" class="btn btn-primary">
-                            <i class="bi bi-pencil-square"></i> 修改记录
-                        </a>
-                        <button class="btn btn-danger" id="deleteSingleBtn" data-trade-id="{{ trade.id }}">
-                            <i class="bi bi-trash"></i> 删除记录
-                        </button>
-                    </div>
-                    <small class="text-muted d-block mt-2">
-                        <i class="bi bi-info-circle"></i> 可修改策略、费用、理由和日志，或者删除整个交易记录
-                    </small>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-        
-        <!-- 交易日志 -->
-        {% if trade.status == 'closed' and trade.trade_log %}
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-journal-check"></i> 交易日志
-                    <span class="badge bg-info ms-2">已平仓</span>
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="bg-light p-3 rounded">
-                    <p class="mb-0" style="white-space: pre-wrap;">{{ trade.trade_log }}</p>
-                </div>
-                <small class="text-muted mt-2 d-block">
-                    <i class="bi bi-calendar"></i> 记录于 {{ trade.close_date }}
-                </small>
-            </div>
-        </div>
-        {% endif %}
-        
-        <!-- 交易明细 -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-list-ol"></i> 交易明细
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>序号</th>
-                                <th>交易类型</th>
-                                <th>交易价格</th>
-                                <th>交易数量</th>
-                                <th>交易金额</th>
-                                <th>交易费用</th>
-                                <th>交易日期</th>
-                                <th>交易理由</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% if details %}
-                                {% for detail in details %}
-                                <tr>
-                                    <td>{{ loop.index }}</td>
-                                    <td>
-                                        {% if detail.transaction_type == 'buy' %}
-                                            <span class="badge bg-success">买入</span>
-                                        {% else %}
-                                            <span class="badge bg-warning">卖出</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>¥{{ "%.3f"|format(detail.price) }}</td>
-                                    <td>{{ detail.quantity }} 股</td>
-                                    <td>¥{{ "%.3f"|format(detail.amount) }}</td>
-                                    <td>
-                                        {% if detail.transaction_fee %}
-                                            ¥{{ "%.2f"|format(detail.transaction_fee) }}
-                                        {% else %}
-                                            <span class="text-muted">¥0.00</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ detail.transaction_date }}</td>
-                                    <td>
-                                        {% if detail.transaction_type == 'buy' and detail.buy_reason %}
-                                            <span class="text-truncate" style="max-width: 200px;" title="{{ detail.buy_reason }}">
-                                                {{ detail.buy_reason[:50] }}{% if detail.buy_reason|length > 50 %}...{% endif %}
-                                            </span>
-                                        {% elif detail.transaction_type == 'sell' and detail.sell_reason %}
-                                            <span class="text-truncate" style="max-width: 200px;" title="{{ detail.sell_reason }}">
-                                                {{ detail.sell_reason[:50] }}{% if detail.sell_reason|length > 50 %}...{% endif %}
-                                            </span>
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                     
-                                    <td>
-                                        <div class="btn-group">
-                                            {% if detail.transaction_type == 'buy' %}
-                                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modifyDetailModal" 
-                                                        data-detail-id="{{ detail.id }}" data-detail-type="buy">
-                                                    <i class="bi bi-pencil-square"></i> 修改
-                                                </button>
-                                                {% set can_quick_sell = detail.can_quick_sell %}
-                                                <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#quickSellModal" 
-                                                        data-detail-id="{{ detail.id }}" data-trade-id="{{ trade.id }}" data-remaining="{{ detail.remaining_for_quick or 0 }}" {% if not can_quick_sell %}disabled="disabled"{% endif %}>
-                                                    <i class="bi bi-dash-circle"></i> 卖出
-                                                </button>
-                                            {% else %}
-                                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modifyDetailModal" 
-                                                        data-detail-id="{{ detail.id }}" data-detail-type="sell">
-                                                    <i class="bi bi-pencil-square"></i> 修改
-                                                </button>
-                                            {% endif %}
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
+                        <div class="col-md-3 mb-3">
+                            <h6 class="text-muted">持仓天数</h6>
+                            {% if trade.holding_days %}
+                                <span class="fw-bold">{{ trade.holding_days }} 天</span>
                             {% else %}
-                                <tr>
-                                    <td colspan="9" class="text-center text-muted">
-                                        暂无交易明细
-                                    </td>
-                                </tr>
+                                <span class="fw-bold text-primary">持仓中</span>
                             {% endif %}
-                        </tbody>
-                    </table>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <h6 class="text-muted">买入信息</h6>
+                            <div>
+                                总买入: <span class="fw-bold">{{ overview.buy_qty }} 股</span>
+                            </div>
+                            <div>
+                                总成交（不含费）: <span class="fw-bold">¥{{ "%.3f"|format(overview.buy_gross) }}</span>
+                            </div>
+                            <div>
+                                总买入费用: <span class="fw-bold">¥{{ "%.2f"|format(overview.buy_fees) }}</span>
+                            </div>
+                            <div>
+                                平均价（不含费）: <span class="fw-bold">¥{{ "%.3f"|format(overview.avg_buy_ex) }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <h6 class="text-muted">卖出信息</h6>
+                            {% if overview.sell_qty > 0 %}
+                                <div>
+                                    总卖出: <span class="fw-bold">{{ overview.sell_qty }} 股</span>
+                                </div>
+                                <div>
+                                    总成交（不含费）: <span class="fw-bold">¥{{ "%.3f"|format(overview.sell_gross) }}</span>
+                                </div>
+                                <div>
+                                    总卖出费用: <span class="fw-bold">¥{{ "%.2f"|format(overview.sell_fees) }}</span>
+                                </div>
+                                <div>
+                                    平均价（不含费）: <span class="fw-bold">¥{{ "%.3f"|format(overview.avg_sell_ex) }}</span>
+                                </div>
+                            {% else %}
+                                <div class="text-muted">尚未卖出</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <h6 class="text-muted">盈亏信息</h6>
+                            <div>
+                                剩余持仓: <span class="fw-bold text-primary">{{ trade.remaining_quantity }} 股</span>
+                            </div>
+                            <div>
+                                毛利润:
+                                {% if overview.gross_profit > 0 %}
+                                    <span class="fw-bold text-danger">+¥{{ "%.3f"|format(overview.gross_profit) }}</span>
+                                {% elif overview.gross_profit < 0 %}
+                                    <span class="fw-bold text-success">-¥{{ "%.3f"|format((overview.gross_profit | abs) ) }}</span>
+                                {% else %}
+                                    <span class="fw-bold text-muted">¥0.000</span>
+                                {% endif %}
+                            </div>
+                            <div>
+                                毛利率: <span class="fw-bold">{{ "%.2f"|format(overview.gross_profit_rate) }}%</span>
+                            </div>
+                            <div>
+                                净利润:
+                                {% if overview.net_profit > 0 %}
+                                    <span class="fw-bold text-danger">+¥{{ "%.3f"|format(overview.net_profit) }}</span>
+                                {% elif overview.net_profit < 0 %}
+                                    <span class="fw-bold text-success">-¥{{ "%.3f"|format((overview.net_profit | abs) ) }}</span>
+                                {% else %}
+                                    <span class="fw-bold text-muted">¥0.000</span>
+                                {% endif %}
+                            </div>
+                            <div>
+                                净利率: <span class="fw-bold">{{ "%.2f"|format(overview.net_profit_rate) }}%</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% if trade.status == 'open' and trade.remaining_quantity > 0 %}
+                        <hr>
+                        <div class="text-center">
+                            <a href="{{ url_for('trading.add_sell', trade_id=trade.id) }}"
+                               class="btn btn-warning">
+                                <i class="bi bi-dash-circle"></i> 卖出股份
+                            </a>
+                        </div>
+                    {% elif trade.status == 'closed' %}
+                        <hr>
+                        <div class="text-center">
+                            <div class="d-flex gap-2 justify-content-center">
+                                <a href="{{ url_for('trading.edit_trade', trade_id=trade.id) }}"
+                                   class="btn btn-primary">
+                                    <i class="bi bi-pencil-square"></i> 修改记录
+                                </a>
+                                <button class="btn btn-danger"
+                                        id="deleteSingleBtn"
+                                        data-trade-id="{{ trade.id }}">
+                                    <i class="bi bi-trash"></i> 删除记录
+                                </button>
+                            </div>
+                            <small class="text-muted d-block mt-2">
+                                <i class="bi bi-info-circle"></i> 可修改策略、费用、理由和日志，或者删除整个交易记录
+                            </small>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
-        </div>
-        
-        {% if details %}
-        <!-- 交易统计 -->
-        <div class="row mt-4">
-            <div class="col-md-6">
-                <div class="card">
+            <!-- 交易日志 -->
+            {% if trade.status == 'closed' and trade.trade_log %}
+                <div class="card mb-4">
                     <div class="card-header">
-                        <h6 class="card-title mb-0">
-                            <i class="bi bi-graph-up"></i> 买入统计
-                        </h6>
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-journal-check"></i> 交易日志
+                            <span class="badge bg-info ms-2">已平仓</span>
+                        </h5>
                     </div>
                     <div class="card-body">
-                        {% set buy_details = details | selectattr("transaction_type", "equalto", "buy") | list %}
-                        {% if buy_details %}
-                            <div class="row text-center">
-                                <div class="col-4">
-                                    <h6 class="text-primary">{{ buy_details | length }}</h6>
-                                    <small class="text-muted">买入次数</small>
-                                </div>
-                                <div class="col-4">
-                                    <h6 class="text-primary">{{ buy_details | sum(attribute='quantity') }}</h6>
-                                    <small class="text-muted">买入总量</small>
-                                </div>
-                                <div class="col-4">
-                                    <h6 class="text-primary">¥{{ "%.3f"|format(buy_details | sum(attribute='amount')) }}</h6>
-                                    <small class="text-muted">投入总额</small>
-                                </div>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="card-title mb-0">
-                            <i class="bi bi-graph-down"></i> 卖出统计
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        {% set sell_details = details | selectattr("transaction_type", "equalto", "sell") | list %}
-                        {% if sell_details %}
-                            <div class="row text-center">
-                                <div class="col-4">
-                                    <h6 class="text-warning">{{ sell_details | length }}</h6>
-                                    <small class="text-muted">卖出次数</small>
-                                </div>
-                                <div class="col-4">
-                                    <h6 class="text-warning">{{ sell_details | sum(attribute='quantity') }}</h6>
-                                    <small class="text-muted">卖出总量</small>
-                                </div>
-                                <div class="col-4">
-                                    <h6 class="text-warning">¥{{ "%.3f"|format(sell_details | sum(attribute='amount')) }}</h6>
-                                    <small class="text-muted">回收总额</small>
-                                </div>
-                            </div>
-                        {% else %}
-                            <div class="text-center text-muted">
-                                尚未进行卖出操作
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- 修改历史 -->
-        {% if trade.status == 'closed' %}
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h6 class="card-title mb-0">
-                            <i class="bi bi-clock-history"></i> 修改历史
-                        </h6>
-                        <button class="btn btn-sm btn-outline-primary" id="loadModifications">
-                            <i class="bi bi-arrow-clockwise"></i> 加载历史
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <div id="modificationsLoading" class="text-center text-muted" style="display: none;">
-                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-                            加载修改历史中...
+                        <div class="bg-light p-3 rounded">
+                            <p class="mb-0" style="white-space: pre-wrap;">{{ trade.trade_log }}</p>
                         </div>
-                        <div id="modificationsContent" style="display: none;">
-                            <div class="table-responsive">
-                                <table class="table table-striped table-sm">
-                                    <thead class="table-light">
+                        <small class="text-muted mt-2 d-block">
+                            <i class="bi bi-calendar"></i> 记录于 {{ trade.close_date }}
+                        </small>
+                    </div>
+                </div>
+            {% endif %}
+            <!-- 交易明细 -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-list-ol"></i> 交易明细
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>序号</th>
+                                    <th>交易类型</th>
+                                    <th>交易价格</th>
+                                    <th>交易数量</th>
+                                    <th>交易金额</th>
+                                    <th>交易费用</th>
+                                    <th>交易日期</th>
+                                    <th>交易理由</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if details %}
+                                    {% for detail in details %}
                                         <tr>
-                                            <th>修改时间</th>
-                                            <th>修改类型</th>
-                                            <th>字段名称</th>
-                                            <th>原值</th>
-                                            <th>新值</th>
-                                            <th>修改原因</th>
+                                            <td>{{ loop.index }}</td>
+                                            <td>
+                                                {% if detail.transaction_type == 'buy' %}
+                                                    <span class="badge bg-success">买入</span>
+                                                {% else %}
+                                                    <span class="badge bg-warning">卖出</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>¥{{ "%.3f"|format(detail.price) }}</td>
+                                            <td>{{ detail.quantity }} 股</td>
+                                            <td>¥{{ "%.3f"|format(detail.amount) }}</td>
+                                            <td>
+                                                {% if detail.transaction_fee %}
+                                                    ¥{{ "%.2f"|format(detail.transaction_fee) }}
+                                                {% else %}
+                                                    <span class="text-muted">¥0.00</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ detail.transaction_date }}</td>
+                                            <td>
+                                                {% if detail.transaction_type == 'buy' and detail.buy_reason %}
+                                                    <span class="text-truncate"
+                                                          style="max-width: 200px"
+                                                          title="{{ detail.buy_reason }}">
+                                                        {{ detail.buy_reason[:50] }}
+                                                        {% if detail.buy_reason|length > 50 %}...{% endif %}
+                                                    </span>
+                                                {% elif detail.transaction_type == 'sell' and detail.sell_reason %}
+                                                    <span class="text-truncate"
+                                                          style="max-width: 200px"
+                                                          title="{{ detail.sell_reason }}">
+                                                        {{ detail.sell_reason[:50] }}
+                                                        {% if detail.sell_reason|length > 50 %}...{% endif %}
+                                                    </span>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="btn-group">
+                                                    {% if detail.transaction_type == 'buy' %}
+                                                        <button type="button"
+                                                                class="btn btn-sm btn-outline-primary"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#modifyDetailModal"
+                                                                data-detail-id="{{ detail.id }}"
+                                                                data-detail-type="buy">
+                                                            <i class="bi bi-pencil-square"></i> 修改
+                                                        </button>
+                                                        {% set can_quick_sell = detail.can_quick_sell %}
+                                                        <button type="button"
+                                                                class="btn btn-sm btn-outline-warning"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#quickSellModal"
+                                                                data-detail-id="{{ detail.id }}"
+                                                                data-trade-id="{{ trade.id }}"
+                                                                data-remaining="{{ detail.remaining_for_quick or 0 }}"
+                                                                {% if not can_quick_sell %}disabled="disabled"{% endif %}>
+                                                            <i class="bi bi-dash-circle"></i> 卖出
+                                                        </button>
+                                                    {% else %}
+                                                        <button type="button"
+                                                                class="btn btn-sm btn-outline-primary"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#modifyDetailModal"
+                                                                data-detail-id="{{ detail.id }}"
+                                                                data-detail-type="sell">
+                                                            <i class="bi bi-pencil-square"></i> 修改
+                                                        </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody id="modificationsTableBody">
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div id="noModifications" class="text-center text-muted">
-                            <i class="bi bi-info-circle"></i> 
-                            该交易尚未进行过修改，点击"加载历史"查看修改记录
-                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="9" class="text-center text-muted">暂无交易明细</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- 修改交易明细模态框 -->
-<div class="modal fade" id="modifyDetailModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-pencil-square"></i> 修改交易明细
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="modifyDetailForm">
-                    <input type="hidden" id="modifyDetailId" name="detail_id">
-                    
-                    <!-- 共享信息 -->
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="modifySymbolCode" class="form-label">标的代码</label>
-                            <input type="text" class="form-control" id="modifySymbolCode" name="symbol_code" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="modifySymbolName" class="form-label">标的名称</label>
-                            <input type="text" class="form-control" id="modifySymbolName" name="symbol_name" required>
-                        </div>
-                    </div>
-                    
-                    <!-- 交易明细信息 -->
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="modifyPrice" class="form-label">交易价格</label>
-                            <div class="input-group">
-                                <span class="input-group-text">¥</span>
-                                <input type="number" class="form-control" id="modifyPrice" name="price" step="0.001" min="0.001" required>
+            {% if details %}
+                <!-- 交易统计 -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-graph-up"></i> 买入统计
+                                </h6>
                             </div>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="modifyQuantity" class="form-label">交易数量</label>
-                            <input type="number" class="form-control" id="modifyQuantity" name="quantity" min="1" required>
-                        </div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="modifyTransactionDate" class="form-label">交易日期</label>
-                            <input type="date" class="form-control" id="modifyTransactionDate" name="transaction_date" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="modifyTransactionFee" class="form-label">交易费用</label>
-                            <div class="input-group">
-                                <span class="input-group-text">¥</span>
-                                <input type="number" class="form-control" id="modifyTransactionFee" name="transaction_fee" step="0.01" min="0" value="0">
+                            <div class="card-body">
+                                {% set buy_details = details | selectattr("transaction_type", "equalto", "buy") | list %}
+                                {% if buy_details %}
+                                    <div class="row text-center">
+                                        <div class="col-4">
+                                            <h6 class="text-primary">{{ buy_details | length }}</h6>
+                                            <small class="text-muted">买入次数</small>
+                                        </div>
+                                        <div class="col-4">
+                                            <h6 class="text-primary">{{ buy_details | sum(attribute='quantity') }}</h6>
+                                            <small class="text-muted">买入总量</small>
+                                        </div>
+                                        <div class="col-4">
+                                            <h6 class="text-primary">¥{{ "%.3f"|format(buy_details | sum(attribute='amount') ) }}</h6>
+                                            <small class="text-muted">投入总额</small>
+                                        </div>
+                                    </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="modifyBuyReason" class="form-label">买入理由</label>
-                            <textarea class="form-control" id="modifyBuyReason" name="buy_reason" rows="2"></textarea>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="modifySellReason" class="form-label">卖出理由</label>
-                            <textarea class="form-control" id="modifySellReason" name="sell_reason" rows="2"></textarea>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="modifyReason" class="form-label">修改原因 <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="modifyReason" name="modify_reason" rows="3" 
-                                  placeholder="请详细说明修改的原因..." required></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary" id="saveModifyBtn">
-                    <i class="bi bi-check-circle"></i> 保存修改
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 快捷卖出模态框 -->
-<div class="modal fade" id="quickSellModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-dash-circle"></i> 快捷卖出
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="quickSellForm">
-                    <input type="hidden" id="quickSellDetailId" name="detail_id">
-                    <input type="hidden" id="quickSellTradeId" name="trade_id">
-                    
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i>
-                        <strong>快捷卖出说明：</strong>选择要卖出的仓位比例，系统将自动计算对应的数量和金额。
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="quickSellPrice" class="form-label">卖出价格 <span class="text-danger">*</span></label>
-                            <div class="input-group">
-                                <span class="input-group-text">¥</span>
-                                <input type="number" class="form-control" id="quickSellPrice" name="price" step="0.001" min="0.001" required>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-graph-down"></i> 卖出统计
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                {% set sell_details = details | selectattr("transaction_type", "equalto", "sell") | list %}
+                                {% if sell_details %}
+                                    <div class="row text-center">
+                                        <div class="col-4">
+                                            <h6 class="text-warning">{{ sell_details | length }}</h6>
+                                            <small class="text-muted">卖出次数</small>
+                                        </div>
+                                        <div class="col-4">
+                                            <h6 class="text-warning">{{ sell_details | sum(attribute='quantity') }}</h6>
+                                            <small class="text-muted">卖出总量</small>
+                                        </div>
+                                        <div class="col-4">
+                                            <h6 class="text-warning">¥{{ "%.3f"|format(sell_details | sum(attribute='amount') ) }}</h6>
+                                            <small class="text-muted">回收总额</small>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <div class="text-center text-muted">尚未进行卖出操作</div>
+                                {% endif %}
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <label for="quickSellDate" class="form-label">卖出日期 <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" id="quickSellDate" name="transaction_date" required>
-                        </div>
                     </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="quickSellQuantity" class="form-label">卖出份额（股） <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="quickSellQuantity" name="quantity" min="1" placeholder="手动输入或使用下方快捷比例" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="quickSellFee" class="form-label">交易费用</label>
-                            <div class="input-group">
-                                <span class="input-group-text">¥</span>
-                                <input type="number" class="form-control" id="quickSellFee" name="transaction_fee" step="0.01" min="0" value="0">
+                </div>
+            {% endif %}
+            <!-- 修改历史 -->
+            {% if trade.status == 'closed' %}
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-clock-history"></i> 修改历史
+                                </h6>
+                                <button class="btn btn-sm btn-outline-primary" id="loadModifications">
+                                    <i class="bi bi-arrow-clockwise"></i> 加载历史
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div id="modificationsLoading"
+                                     class="text-center text-muted"
+                                     style="display: none">
+                                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                    加载修改历史中...
+                                </div>
+                                <div id="modificationsContent" style="display: none;">
+                                    <div class="table-responsive">
+                                        <table class="table table-striped table-sm">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>修改时间</th>
+                                                    <th>修改类型</th>
+                                                    <th>字段名称</th>
+                                                    <th>原值</th>
+                                                    <th>新值</th>
+                                                    <th>修改原因</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="modificationsTableBody">
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div id="noModifications" class="text-center text-muted">
+                                    <i class="bi bi-info-circle"></i>
+                                    该交易尚未进行过修改，点击"加载历史"查看修改记录
+                                </div>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <label for="quickSellReason" class="form-label">卖出理由</label>
-                            <textarea class="form-control" id="quickSellReason" name="sell_reason" rows="2" 
-                                      placeholder="记录卖出的原因..."></textarea>
-                        </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">快捷卖出比例</label>
-                        <div class="d-flex gap-2 justify-content-between flex-wrap">
-                            <button type="button" class="btn btn-outline-primary quick-sell-btn" data-ratio="0.2">1/5</button>
-                            <button type="button" class="btn btn-outline-primary quick-sell-btn" data-ratio="0.25">1/4</button>
-                            <button type="button" class="btn btn-outline-primary quick-sell-btn" data-ratio="0.333">1/3</button>
-                            <button type="button" class="btn btn-outline-primary quick-sell-btn" data-ratio="0.5">1/2</button>
-                            <button type="button" class="btn btn-outline-danger quick-sell-btn" data-ratio="1.0">全部</button>
-                        </div>
-                    </div>
-                    
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        <strong>注意：</strong>快捷卖出按照先进先出（FIFO）计算可卖份额，并综合涉及的买入记录计算本次卖出的整体盈亏。
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-warning" id="confirmQuickSellBtn" disabled>
-                    <i class="bi bi-dash-circle"></i> 确认卖出
-                </button>
-            </div>
+                </div>
+            {% endif %}
         </div>
     </div>
-</div>
+    <!-- 修改交易明细模态框 -->
+    <div class="modal fade" id="modifyDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-pencil-square"></i> 修改交易明细
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="modifyDetailForm">
+                        <input type="hidden" id="modifyDetailId" name="detail_id">
+                        <!-- 共享信息 -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="modifySymbolCode" class="form-label">标的代码</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="modifySymbolCode"
+                                       name="symbol_code"
+                                       required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="modifySymbolName" class="form-label">标的名称</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="modifySymbolName"
+                                       name="symbol_name"
+                                       required>
+                            </div>
+                        </div>
+                        <!-- 交易明细信息 -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="modifyPrice" class="form-label">交易价格</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="number"
+                                           class="form-control"
+                                           id="modifyPrice"
+                                           name="price"
+                                           step="0.001"
+                                           min="0.001"
+                                           required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="modifyQuantity" class="form-label">交易数量</label>
+                                <input type="number"
+                                       class="form-control"
+                                       id="modifyQuantity"
+                                       name="quantity"
+                                       min="1"
+                                       required>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="modifyTransactionDate" class="form-label">交易日期</label>
+                                <input type="date"
+                                       class="form-control"
+                                       id="modifyTransactionDate"
+                                       name="transaction_date"
+                                       required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="modifyTransactionFee" class="form-label">交易费用</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="number"
+                                           class="form-control"
+                                           id="modifyTransactionFee"
+                                           name="transaction_fee"
+                                           step="0.01"
+                                           min="0"
+                                           value="0">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="modifyBuyReason" class="form-label">买入理由</label>
+                                <textarea class="form-control" id="modifyBuyReason" name="buy_reason" rows="2"></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="modifySellReason" class="form-label">卖出理由</label>
+                                <textarea class="form-control"
+                                          id="modifySellReason"
+                                          name="sell_reason"
+                                          rows="2"></textarea>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="modifyReason" class="form-label">
+                                修改原因 <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control"
+                                      id="modifyReason"
+                                      name="modify_reason"
+                                      rows="3"
+                                      placeholder="请详细说明修改的原因..."
+                                      required></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveModifyBtn">
+                        <i class="bi bi-check-circle"></i> 保存修改
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 快捷卖出模态框 -->
+    <div class="modal fade" id="quickSellModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-dash-circle"></i> 快捷卖出
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="quickSellForm">
+                        <input type="hidden" id="quickSellDetailId" name="detail_id">
+                        <input type="hidden" id="quickSellTradeId" name="trade_id">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>快捷卖出说明：</strong>选择要卖出的仓位比例，系统将自动计算对应的数量和金额。
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="quickSellPrice" class="form-label">
+                                    卖出价格 <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="number"
+                                           class="form-control"
+                                           id="quickSellPrice"
+                                           name="price"
+                                           step="0.001"
+                                           min="0.001"
+                                           required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="quickSellDate" class="form-label">
+                                    卖出日期 <span class="text-danger">*</span>
+                                </label>
+                                <input type="date"
+                                       class="form-control"
+                                       id="quickSellDate"
+                                       name="transaction_date"
+                                       required>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="quickSellQuantity" class="form-label">
+                                    卖出份额（股） <span class="text-danger">*</span>
+                                </label>
+                                <input type="number"
+                                       class="form-control"
+                                       id="quickSellQuantity"
+                                       name="quantity"
+                                       min="1"
+                                       placeholder="手动输入或使用下方快捷比例"
+                                       required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="quickSellFee" class="form-label">交易费用</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="number"
+                                           class="form-control"
+                                           id="quickSellFee"
+                                           name="transaction_fee"
+                                           step="0.01"
+                                           min="0"
+                                           value="0">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="quickSellReason" class="form-label">卖出理由</label>
+                                <textarea class="form-control"
+                                          id="quickSellReason"
+                                          name="sell_reason"
+                                          rows="2"
+                                          placeholder="记录卖出的原因..."></textarea>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">快捷卖出比例</label>
+                            <div class="d-flex gap-2 justify-content-between flex-wrap">
+                                <button type="button"
+                                        class="btn btn-outline-primary quick-sell-btn"
+                                        data-ratio="0.2">1/5</button>
+                                <button type="button"
+                                        class="btn btn-outline-primary quick-sell-btn"
+                                        data-ratio="0.25">1/4</button>
+                                <button type="button"
+                                        class="btn btn-outline-primary quick-sell-btn"
+                                        data-ratio="0.333">1/3</button>
+                                <button type="button"
+                                        class="btn btn-outline-primary quick-sell-btn"
+                                        data-ratio="0.5">1/2</button>
+                                <button type="button"
+                                        class="btn btn-outline-danger quick-sell-btn"
+                                        data-ratio="1.0">全部</button>
+                            </div>
+                        </div>
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <strong>注意：</strong>快捷卖出按照先进先出（FIFO）计算可卖份额，并综合涉及的买入记录计算本次卖出的整体盈亏。
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button"
+                            class="btn btn-warning"
+                            id="confirmQuickSellBtn"
+                            disabled>
+                        <i class="bi bi-dash-circle"></i> 确认卖出
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 {% endblock %}
-
 {% block scripts %}
-<script>
+    <script>
 document.addEventListener('DOMContentLoaded', function() {
     const loadBtn = document.getElementById('loadModifications');
     const loadingDiv = document.getElementById('modificationsLoading');
@@ -875,8 +979,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                         确认码 <span class="text-danger">*</span>
                                     </label>
                                     <div class="input-group">
-                                        <input type="text" class="form-control" id="confirmationCode" name="confirmation_code" 
-                                               placeholder="请输入确认码" required>
+                                        <input type="text" class="form-control" id="confirmationCode" name="confirmation_code" placeholder="请输入确认码" required>
                                         <button type="button" class="btn btn-outline-secondary" id="generateCodeBtn">
                                             <i class="bi bi-arrow-clockwise"></i> 生成
                                         </button>
@@ -886,8 +989,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 
                                 <div class="mb-3">
                                     <label for="operatorNote" class="form-label">操作备注</label>
-                                    <textarea class="form-control" id="operatorNote" name="operator_note" rows="2" 
-                                              placeholder="可以记录此次删除的具体原因或其他备注信息..."></textarea>
+                                    <textarea class="form-control" id="operatorNote" name="operator_note" rows="2" placeholder="可以记录此次删除的具体原因或其他备注信息..."></textarea>
                                 </div>
                             </form>
                         </div>
@@ -975,5 +1077,5 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.show();
     }
 });
-</script>
+    </script>
 {% endblock %}
