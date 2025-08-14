@@ -29,8 +29,8 @@ class TestPerformance(unittest.TestCase):
         self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
         self.temp_db.close()
 
-        # Flask 应用（测试模式）
-        self.app = create_app()
+        # Flask 应用（测试模式，强制 testing 配置）
+        self.app = create_app('testing')
         self.app.config['TESTING'] = True
         self.app.config['DATABASE_PATH'] = self.temp_db.name
 

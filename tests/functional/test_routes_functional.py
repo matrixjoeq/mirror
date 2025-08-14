@@ -18,7 +18,7 @@ class TestRoutesFunctional(unittest.TestCase):
         self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
         self.temp_db.close()
 
-        self.app = create_app()
+        self.app = create_app('testing')
         self.app.config['TESTING'] = True
         self.app.config['DATABASE_PATH'] = self.temp_db.name
 

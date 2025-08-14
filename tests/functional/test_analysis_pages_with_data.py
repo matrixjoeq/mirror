@@ -17,7 +17,7 @@ class TestAnalysisPagesWithData(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
         self.tmp.close()
-        self.app = create_app()
+        self.app = create_app('testing')
         self.app.config['TESTING'] = True
         self.app.config['DATABASE_PATH'] = self.tmp.name
         self.db = DatabaseService(self.tmp.name)

@@ -9,6 +9,21 @@
   - 更新 `doc/TESTING.md`：明确各测试套件覆盖率阈值、静态检查（djlint/eslint/stylelint）与 MyPy 执行说明；强调测试数据库隔离。
   - 更新 `doc/TESTING_REPORT.md`：在覆盖概述中加入阈值说明。
   - 更新 `doc/PROGRESS.md`：覆盖率数字与软删除实现描述对齐现状（TOTAL≈53% 性能覆盖达标）。
+ - 测试用例规范化
+   - 统一所有测试中对 `create_app()` 的调用为 `create_app('testing')`，确保手动运行测试时也强制使用测试配置与隔离数据库。
+   - 小幅清理集成测试中的未使用变量与导入，降低静态检查噪声。
+ - 分析能力增强（新指标）
+   - 在策略评分中新增专业风险/收益指标：年化波动率、年化收益率、最大回撤。
+   - 使用 `numpy`、`pandas`、`empyrical-reloaded` 计算，未自行实现算法；新增依赖：`numpy==1.26.4`、`pandas==2.2.2`、`empyrical-reloaded==0.5.10`。
+
+ - 功能测试覆盖率修补
+   - 新增功能测试：`tests/functional/test_routes_admin_and_metrics.py` 覆盖 `/admin/db/*` 管理端点、`/api/strategy_score` 新增指标字段存在性、`/api/strategy_trend`、`/api/trade_detail`、`/api/symbol_lookup`、主页 `/`、以及 `utils.helpers` 与 `services.trade_calculation` 的关键路径。
+   - 新增轻量冒烟测试：`tests/functional/test_routes_api_smoke_additional.py` 覆盖首页 200。
+   - 运行结果：功能测试行覆盖率从 78% 提升至 80%（达到阈值≥80%）。
+
+  - 类型检查与集成覆盖率提升
+    - 修复 `services/analysis_service.py` 中的 MyPy 报错，显式使用 float 转换，类型检查 0 错误。
+    - 扩充集成测试：覆盖 `/admin/db/update_row`、`/admin/db/auto_fix`、`/api/quick_sell`、`/api/symbol_lookup`、`/admin/db/diagnose(.json)` 等路径；集成覆盖率由 62% 提升至 70%（达到阈值≥67%）。
 
 ### 2025-08-13
 - 性能覆盖与测试

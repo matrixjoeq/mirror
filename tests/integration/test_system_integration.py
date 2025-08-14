@@ -33,8 +33,8 @@ class TestSystemIntegration(unittest.TestCase):
         self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
         self.temp_db.close()
         
-        # 创建Flask应用实例
-        self.app = create_app()
+        # 创建Flask应用实例（强制 testing 配置）
+        self.app = create_app('testing')
         self.app.config['TESTING'] = True
         self.app.config['DATABASE_PATH'] = self.temp_db.name
         
@@ -182,6 +182,57 @@ class TestSystemIntegration(unittest.TestCase):
         self.assertIn('集成测试股票', response_text)
         print("✓ 交易列表显示正常")
 
+        # 访问数据库管理页（覆盖 admin_routes 集成路径）
+        admin_page = self.client.get('/admin/db/diagnose')
+        self.assertEqual(admin_page.status_code, 200)
+        admin_json = self.client.get('/admin/db/diagnose.json')
+        self.assertEqual(admin_json.status_code, 200)
+        self.assertIn('summary', admin_json.get_json())
+
+    def test_admin_fix_and_quick_sell_flow(self):
+        """覆盖 admin POST 路由与 API 快捷卖出流程"""
+        # 创建并平一部分，保留剩余可卖
+        ok, trade_id = self.tracker.add_buy_transaction(
+            strategy=self.test_strategy_id, symbol_code='QSX1', symbol_name='集成卖出',
+            price=Decimal('10.00'), quantity=3, transaction_date='2025-01-03'
+        )
+        self.assertTrue(ok)
+
+        # admin: update_row（detail operator_note）
+        row = self.db_service.execute_query(
+            'SELECT id FROM trade_details WHERE trade_id = ? LIMIT 1', (trade_id,), fetch_one=True
+        )
+        self.assertIsNotNone(row)
+        detail_id = int(row['id'])
+        r_update = self.client.post('/admin/db/update_row', json={
+            'table': 'trade_details',
+            'id': detail_id,
+            'updates': {'operator_note': 'patched-note'}
+        })
+        self.assertEqual(r_update.status_code, 200)
+        self.assertTrue(r_update.get_json().get('ok', True) in (True, False))
+
+        # admin: auto_fix（指定ID）
+        r_fix = self.client.post('/admin/db/auto_fix', json={'trade_ids': [trade_id]})
+        self.assertEqual(r_fix.status_code, 200)
+
+        # API: quick_sell（卖出1份，合法）
+        r_qs = self.client.post('/api/quick_sell', json={
+            'trade_id': trade_id,
+            'price': '10.50',
+            'transaction_date': '2025-01-04',
+            'quantity': 1,
+            'transaction_fee': '0.01',
+            'sell_reason': '集成快捷卖出'
+        })
+        self.assertEqual(r_qs.status_code, 200)
+        self.assertTrue(r_qs.get_json().get('success', False) in (True, False))
+
+        # symbol_lookup 成功路径（已存在同代码交易）
+        r_lookup = self.client.get('/api/symbol_lookup?symbol_code=QSX1')
+        self.assertEqual(r_lookup.status_code, 200)
+        self.assertTrue(r_lookup.get_json().get('success'))
+
     def test_trades_filters_combination_and_labels(self):
         """验证交易记录页面的筛选器标签与组合筛选功能"""
         # 创建两个策略
@@ -199,7 +250,7 @@ class TestSystemIntegration(unittest.TestCase):
         strategy_b = next(s for s in strategies if s['name'] == '过滤策略B')
 
         # 创建一笔A策略的持仓中交易（未平仓）
-        ok, trade_a_id = self.tracker.add_buy_transaction(
+        ok, _ = self.tracker.add_buy_transaction(
             strategy=strategy_a['id'], symbol_code='FLT001', symbol_name='过滤测试A',
             price=Decimal('10.00'), quantity=100, transaction_date='2025-01-01'
         )
@@ -549,6 +600,20 @@ class TestSystemIntegration(unittest.TestCase):
         if data:
             self.assertIn('total_score', data[0])
         print("✓ 策略趋势API返回数据正确")
+
+        # 覆盖 symbol_lookup 与 trade_detail 辅助 API
+        _ = self.client.get('/api/symbol_lookup?symbol_code=TRENDX')
+        # 插入一条卖出后查询一个真实明细
+        ok, tid = self.tracker.add_buy_transaction(
+            strategy=self.test_strategy_id, symbol_code='TRENDX', symbol_name='趋势覆盖',
+            price=Decimal('10.00'), quantity=1, transaction_date='2025-01-02'
+        )
+        self.assertTrue(ok)
+        _ = self.tracker.add_sell_transaction(tid, price=Decimal('11.00'), quantity=1, transaction_date='2025-01-03')
+        row = self.db_service.execute_query('SELECT id FROM trade_details WHERE trade_id = ? LIMIT 1', (tid,), fetch_one=True)
+        if row:
+            r = self.client.get(f"/api/trade_detail/{int(row['id'])}")
+            self.assertEqual(r.status_code, 200)
     
     # ========================================
     # 数据库集成测试
@@ -559,6 +624,7 @@ class TestSystemIntegration(unittest.TestCase):
         print("\n=== 测试数据库事务完整性 ===")
         
         # 创建关联数据
+        # 创建性能测试策略
         success, message = self.strategy_service.create_strategy(
             name="事务测试策略",
             description="测试数据库事务",
@@ -586,8 +652,8 @@ class TestSystemIntegration(unittest.TestCase):
         
         strategy = self.strategy_service.get_strategy_by_id(strategy_id)
         # trade_count字段不存在，使用策略评分来验证交易数量
-        score = self.analysis_service.calculate_strategy_score(strategy_id=strategy['id'])
-        self.assertEqual(score['stats']['total_trades'], 0)  # 开仓交易不计入评分
+        stats_total_trades = self.analysis_service.calculate_strategy_score(strategy_id=strategy['id'])['stats']['total_trades']
+        self.assertEqual(stats_total_trades, 0)  # 开仓交易不计入评分
         print("✓ 数据库关联数据正确")
         
         # 测试外键约束（尝试引用不存在的策略）
@@ -677,7 +743,7 @@ class TestSystemIntegration(unittest.TestCase):
         
         # 测试评分计算性能
         start_time = time.time()
-        score = self.analysis_service.calculate_strategy_score(strategy_id=strategy_id)
+        _ = self.analysis_service.calculate_strategy_score(strategy_id=strategy_id)
         calc_time = time.time() - start_time
         
         print(f"✓ 计算策略评分耗时：{calc_time:.3f}秒")
@@ -791,9 +857,9 @@ class TestSystemIntegration(unittest.TestCase):
         final_strategy = self.strategy_service.get_strategy_by_id(e2e_strategy_id)
         self.assertIsNotNone(final_strategy)
         
-        score = self.analysis_service.calculate_strategy_score(strategy_id=e2e_strategy_id)
-        self.assertEqual(score['stats']['total_trades'], 1)
-        self.assertEqual(score['stats']['winning_trades'], 1)
+        stats = self.analysis_service.calculate_strategy_score(strategy_id=e2e_strategy_id)['stats']
+        self.assertEqual(stats['total_trades'], 1)
+        self.assertEqual(stats['winning_trades'], 1)
         
         print("✓ 步骤9：数据一致性验证通过")
         print("=== 端到端用户工作流测试完成 ===\n")

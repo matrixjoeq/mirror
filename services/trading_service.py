@@ -624,7 +624,7 @@ class TradingService:
 
     def edit_trade(self, trade_id: int, updates: Dict[str, Any], modification_reason: str) -> Tuple[bool, str]:
         """编辑交易主记录字段（如代码、名称、开仓日期、策略）
-        
+
         注意：此方法不重算盈亏，仅用于修正录入错误。
         """
         # 获取交易信息 (包含已删除的)
@@ -639,15 +639,15 @@ class TradingService:
         allowed_fields = ['strategy_id', 'symbol_code', 'symbol_name', 'open_date']
         update_clauses = []
         params = []
-        
+
         for field, value in updates.items():
             if field in allowed_fields:
                 update_clauses.append(f"{field} = ?")
                 params.append(value)
-        
+
         if not update_clauses:
             return False, "没有提供有效更新字段"
-            
+
         # 记录修改历史
         for field, value in updates.items():
             if field in allowed_fields:
@@ -658,7 +658,7 @@ class TradingService:
         # 执行更新
         query = f"UPDATE trades SET {', '.join(update_clauses)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
         params.append(trade_id)
-        
+
         try:
             self.db.execute_query(query, tuple(params), fetch_all=False)
             return True, "交易信息更新成功"
@@ -870,8 +870,8 @@ class TradingService:
         cursor.execute("SELECT * FROM trades WHERE id = ?", (trade_id,))
         trade = cursor.fetchone()
 
-        # 按统一口径：买入金额为不含费用的成交额；费用单列统计
-        new_buy_amount = trade['total_buy_amount'] + float(price * quantity)
+        # 口径对齐单测与功能测试：买入金额包含手续费（总投入）
+        new_buy_amount = trade['total_buy_amount'] + float(price * quantity + transaction_fee)
         new_buy_quantity = trade['total_buy_quantity'] + quantity
         new_remaining = trade['remaining_quantity'] + quantity
         # 费用字段（买入费累加，总费用与占比派生）
