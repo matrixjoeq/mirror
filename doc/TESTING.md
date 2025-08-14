@@ -60,6 +60,8 @@ python3 run_tests.py integration # 集成测试
 python3 run_tests.py performance # 性能测试（discover 全量收集，阈值50%）
 ```
 
+阈值校验（由 `run_tests.py` 强制）：单元≥90%，功能≥80%，集成≥67%，性能≥50%。脚本还会运行模板/JS/CSS 静态检查与 MyPy（不阻塞通过）。
+
 ### 环境准备（测试隔离）
 
 1. **激活虚拟环境**（推荐）：
@@ -67,7 +69,7 @@ python3 run_tests.py performance # 性能测试（discover 全量收集，阈值
    source venv/bin/activate
    ```
 
-2. **安装依赖**（运行脚本将强制 `FLASK_ENV=testing`，并在应用工厂中为每次运行创建独立临时DB，杜绝污染产品库）：
+2. **安装依赖**（运行脚本将强制 `FLASK_ENV=testing`，并在应用工厂中为每次运行创建独立临时DB，杜绝污染产品库；符合“测试永不使用生产数据库”的约束）：
    ```bash
     python3 -m pip install -r requirements.txt
    ```

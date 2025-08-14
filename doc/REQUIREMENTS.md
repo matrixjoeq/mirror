@@ -57,9 +57,9 @@
 - [x] 策略删除前检查是否有关联交易
 
 **实现位置**:
-- 后端: `app.py` - `create_strategy()`, `update_strategy()`, `delete_strategy()`
-- 前端: `templates/strategies.html`, `templates/create_strategy.html`, `templates/edit_strategy.html`
-- 路由: `/strategies`, `/strategy/create`, `/strategy/<id>/edit`, `/strategy/<id>/delete`
+- 服务: `services/strategy_service.py`
+- 路由: `routes/strategy_routes.py`
+- 模板: `templates/strategies.html`, `templates/create_strategy.html`, `templates/edit_strategy.html`
 
 #### FR1.2 策略标签系统
 **需求ID**: FR1.2  
@@ -79,8 +79,8 @@
 - [x] 删除标签前检查是否有策略在使用
 
 **实现位置**:
-- 后端: `app.py` - `create_tag()`, `update_tag()`, `delete_tag()`
-- 前端: `templates/strategies.html` - 标签管理模态框
+- 服务/路由: `services/strategy_service.py`, `routes/api_routes.py`
+- 模板: `templates/strategies.html`（标签管理）
 - API: `/api/tag/create`, `/api/tag/<id>/update`, `/api/tag/<id>/delete`
 
 #### FR1.3 策略数据迁移
@@ -99,7 +99,7 @@
 - [x] 迁移后系统正常运行
 
 **实现位置**:
-- 后端: `app.py` - `init_database()` 方法中的迁移逻辑
+- 服务: `services/database_service.py` 初始化与迁移 `_handle_database_migrations`
 
 ### FR2 - 交易记录管理
 
@@ -122,9 +122,9 @@
 - [x] 交易费用计算和记录
 
 **实现位置**:
-- 后端: `app.py` - `add_buy_transaction()`
-- 前端: `templates/add_buy.html`
-- 路由: `/add_buy`
+- 服务: `services/trading_service.py:add_buy_transaction`
+- 路由: `routes/trading_routes.py:/add_buy`
+- 模板: `templates/add_buy.html`
 
 #### FR2.2 卖出交易记录
 **需求ID**: FR2.2  
@@ -145,9 +145,9 @@
 - [x] 交易费用在盈亏计算中正确扣除
 
 **实现位置**:
-- 后端: `app.py` - `add_sell_transaction()`
-- 前端: `templates/add_sell.html`
-- 路由: `/add_sell/<trade_id>`
+- 服务: `services/trading_service.py:add_sell_transaction`
+- 路由: `routes/trading_routes.py:/add_sell/<trade_id>`
+- 模板: `templates/add_sell.html`
 
 #### FR2.3 交易记录修改
 **需求ID**: FR2.3  
@@ -168,9 +168,9 @@
 - [x] 支持修改交易策略
 
 **实现位置**:
-- 后端: `app.py` - `update_trade_record()`
-- 前端: `templates/edit_trade.html`
-- 路由: `/edit_trade/<trade_id>`
+- 服务: `services/trading_service.py:update_trade_record`
+- 路由: `routes/trading_routes.py:/edit_trade/<trade_id>`
+- 模板: `templates/edit_trade.html`
 
 #### FR2.4 修改历史审计
 **需求ID**: FR2.4  
@@ -189,9 +189,8 @@
 - [x] 修改原因完整记录
 
 **实现位置**:
-- 后端: `app.py` - `update_trade_record()` 中的历史记录逻辑
-- 前端: `templates/trade_details.html` - 修改历史部分
-- API: `/api/trade/<trade_id>/modifications`
+- 服务: `services/trading_service.py:record_modification/get_trade_modifications`
+- 模板: `templates/trade_details.html`
 
 ### FR3 - 数据保护系统
 
@@ -212,9 +211,9 @@
 - [x] 删除后记录从正常列表中隐藏
 
 **实现位置**:
-- 后端: `app.py` - `soft_delete_trade()`, `batch_soft_delete_trades()`
-- 前端: `templates/trades.html` - 删除操作模态框
-- 路由: `/delete_trade/<trade_id>`, `/batch_delete_trades`
+- 服务: `services/trading_service.py:soft_delete_trade`
+- 路由: `routes/trading_routes.py:/delete_trade/...` 与批量接口
+- 模板: `templates/trades.html`
 
 #### FR3.2 数据恢复功能
 **需求ID**: FR3.2  
@@ -233,9 +232,9 @@
 - [x] 恢复后记录重新出现在正常列表中
 
 **实现位置**:
-- 后端: `app.py` - `restore_trade()`, `batch_restore_trades()`
-- 前端: `templates/deleted_trades.html`
-- 路由: `/deleted_trades`, `/restore_trade/<trade_id>`, `/batch_restore_trades`
+- 服务: `services/trading_service.py:restore_trade`
+- 路由: `routes/trading_routes.py:/deleted_trades`, `/restore_trade/...`, `/batch_restore_trades`
+- 模板: `templates/deleted_trades.html`
 
 #### FR3.3 永久删除功能
 **需求ID**: FR3.3  
@@ -254,9 +253,9 @@
 - [x] 永久删除后记录完全从数据库移除
 
 **实现位置**:
-- 后端: `app.py` - `permanently_delete_trade()`, `batch_permanently_delete_trades()`
-- 前端: `templates/deleted_trades.html` - 永久删除模态框
-- 路由: `/permanently_delete_trade/<trade_id>`, `/batch_permanently_delete_trades`
+- 服务: `services/trading_service.py:permanently_delete_trade`
+- 路由: `routes/trading_routes.py:/permanently_delete_trade/...`, `/batch_permanently_delete_trades`
+- 模板: `templates/deleted_trades.html`
 
 ### FR4 - 财务计算系统
 
@@ -277,9 +276,10 @@
 - [x] 显示费用占交易金额的百分比
 
 **实现位置**:
-- 后端: `app.py` - 所有交易计算方法
-- 前端: `templates/add_buy.html`, `templates/add_sell.html`
-- 数据库: `trade_details.transaction_fee` 字段
+- 计算: `services/trade_calculation.py`
+- 服务: `services/trading_service.py` 聚合统一口径
+- 模板: `templates/add_buy.html`, `templates/add_sell.html`
+- 数据库: `trade_details.transaction_fee` 等字段
 
 #### FR4.2 精确盈亏计算
 **需求ID**: FR4.2  
@@ -298,8 +298,8 @@
 - [x] 盈亏比例计算准确
 
 **实现位置**:
-- 后端: `app.py` - `_recalculate_trade_totals()`, `add_sell_transaction()`
-- 计算逻辑: 所有涉及金额计算的方法
+- 计算: `services/trade_calculation.py`
+- 服务: `services/trading_service.py:add_sell_transaction/update_trade_record/get_trade_overview_metrics`
 
 #### FR4.3 历史数据修正
 **需求ID**: FR4.3  
@@ -316,8 +316,8 @@
 - [x] 历史数据修正不影响审计记录
 
 **实现位置**:
-- 执行脚本: 一次性数据修正脚本
-- 后端方法: `_recalculate_trade_totals()`
+- 服务: `services/admin_service.py:auto_fix`（按明细重算主表）
+- 路由: `routes/admin_routes.py:/admin/db/auto_fix`
 
 ### FR5 - 策略评分系统
 
@@ -339,9 +339,8 @@
 - [x] 总分合理反映策略综合表现
 
 **实现位置**:
-- 后端: `app.py` - `calculate_strategy_score()`
-- 前端: `templates/strategy_scores.html`
-- 路由: `/strategy_scores`
+- 服务: `services/analysis_service.py:calculate_strategy_score`
+- 路由/模板: `routes/analysis_routes.py:/strategy_scores`, `templates/strategy_scores.html`
 
 #### FR5.2 评分可视化
 **需求ID**: FR5.2  
@@ -380,9 +379,8 @@
 - [x] 支持按评分、胜率等指标排序
 
 **实现位置**:
-- 后端: `get_strategy_scores()`, `get_strategies_scores_by_symbol()`, `get_strategies_scores_by_time_period()`
-- 前端: `strategy_scores.html`, `symbol_comparison.html`, `time_comparison.html`
-- 路由: `/strategy_scores`, `/symbol_comparison`, `/time_comparison`
+- 服务: `services/analysis_service.py`
+- 路由/模板: `routes/analysis_routes.py`, `templates/strategy_scores.html`, `templates/symbol_comparison.html`, `templates/time_comparison.html`
 
 ### FR6 - 数据查询和展示
 
@@ -403,9 +401,8 @@
 - [x] 批量选择功能可用
 
 **实现位置**:
-- 后端: `app.py` - `get_all_trades()`
-- 前端: `templates/trades.html`
-- 路由: `/trades`
+- 服务: `services/trading_service.py:get_all_trades`
+- 路由/模板: `routes/trading_routes.py:/trades`, `templates/trades.html`
 
 #### FR6.2 交易详情查看
 **需求ID**: FR6.2  
@@ -424,9 +421,8 @@
 - [x] 提供修改、删除等操作入口
 
 **实现位置**:
-- 后端: `app.py` - `get_trade_by_id()`
-- 前端: `templates/trade_details.html`
-- 路由: `/trade/<trade_id>`
+- 服务: `services/trading_service.py:get_trade_by_id/get_trade_details/get_trade_overview_metrics`
+- 路由/模板: `routes/trading_routes.py:/trade_details/<trade_id>`, `templates/trade_details.html`
 
 #### FR6.3 策略统计展示
 **需求ID**: FR6.3  
@@ -445,9 +441,9 @@
 - [x] 统计数据实时更新
 
 **实现位置**:
-- 后端: `app.py` - `calculate_strategy_stats()`
-- 前端: `templates/index.html`
-- 路由: `/`
+- 服务: `services/trading_service.py:get_all_trades/get_trade_overview_metrics`
+- 服务: `services/analysis_service.py:calculate_strategy_score`
+- 路由/模板: `routes/main_routes.py:/`, `templates/index.html`
 
 ## 🔧 非功能需求
 
@@ -787,7 +783,7 @@
 **需求描述**:
 - 使用Flask框架开发Web应用
 - SQLite数据库本地存储
-- MVC架构模式组织代码
+- 三层架构组织代码（Routes/Services/DB & Repos）
 
 **验收标准**:
 - [x] Flask应用结构清晰
@@ -803,7 +799,7 @@
 **需求描述**:
 - 使用Jinja2模板引擎
 - Bootstrap 5 UI框架
-- 原生JavaScript处理交互
+- 原生JavaScript + 少量异步 API 交互
 
 **验收标准**:
 - [x] 模板继承结构合理

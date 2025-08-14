@@ -1,5 +1,15 @@
 ## Changelog
 
+### 2025-08-14
+- 文档同步与校准
+  - 更新根 `README.md`：项目导航、核心特性、测试阈值（单元≥90%/功能≥80%/集成≥67%/性能≥50%）、管理工具 `/admin/db/diagnose`、项目结构与运行说明。
+  - 更新 `doc/README.md`：加入 `admin_service.py` 与 `admin_routes.py`，补充最新 REST API 端点表（tags/symbol_lookup/quick_sell/strategy_score/strategy_trend 等），数据表说明包含费用与净利字段。
+  - 更新 `doc/ARCHITECTURE.md`：补充 admin 路由，记录数据库 SQL 预执行安全校验与费用字段口径。
+  - 更新 `doc/REQUIREMENTS.md`：修正“实现位置”到具体 services/routes/templates；明确计算模块 `trade_calculation.py` 与自动校准 `admin_service.py:auto_fix`。
+  - 更新 `doc/TESTING.md`：明确各测试套件覆盖率阈值、静态检查（djlint/eslint/stylelint）与 MyPy 执行说明；强调测试数据库隔离。
+  - 更新 `doc/TESTING_REPORT.md`：在覆盖概述中加入阈值说明。
+  - 更新 `doc/PROGRESS.md`：覆盖率数字与软删除实现描述对齐现状（TOTAL≈53% 性能覆盖达标）。
+
 ### 2025-08-13
 - 性能覆盖与测试
   - 性能测试改为基于 discover 方式收集整个 `tests/performance/`，自动纳入新增用例

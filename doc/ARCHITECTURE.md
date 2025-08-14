@@ -40,6 +40,7 @@ mirror/
 │   ├── strategy_routes.py   # 策略相关路由
 │   ├── analysis_routes.py   # 分析相关路由
 │   └── api_routes.py        # API路由
+│   └── admin_routes.py      # 管理与数据库诊断
 ├── utils/                   # 工具模块
 │   ├── __init__.py
 │   ├── helpers.py           # 辅助函数
@@ -96,13 +97,14 @@ mirror/
 - `Tag`: 标签
 
 #### 数据库设计
-- SQLite数据库
+- SQLite数据库（统一 SQL 预执行安全校验，阻断多语句/未参数化/典型注入模式）
 - 支持事务操作
 - 软删除机制
 - 审计日志记录
 - 盈利字段口径：
-  - 明细：`gross_profit`/`net_profit` 以及对应比例；毛利按不含费买入均价计算，净利=毛利−卖出手续费
-  - 主表：`total_gross_profit`/`total_net_profit` 及净利率；旧字段 `total_profit_loss` 继续代表毛利（兼容）
+  - 明细：`gross_profit`/`net_profit` 以及对应比例；毛利按不含费买入均价计算；净利=毛利−卖出手续费
+  - 主表：`total_gross_profit`/`total_net_profit`/`total_net_profit_pct`；旧字段 `total_profit_loss` 继续代表毛利（兼容）
+  - 费用：`total_buy_fees`/`total_sell_fees`/`total_fees`/`total_fee_ratio_pct`
 
 ## 模块间依赖关系
 

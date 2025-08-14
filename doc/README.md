@@ -47,13 +47,15 @@ mirror/
 │   ├── database_service.py  # 数据库操作服务
 │   ├── trading_service.py   # 交易业务逻辑服务
 │   ├── strategy_service.py  # 策略业务逻辑服务
-│   └── analysis_service.py  # 分析计算服务
+│   ├── analysis_service.py  # 分析计算服务
+│   └── admin_service.py     # 数据一致性诊断与自动校准
 ├── routes/                  # 🌐 表现层（路由）
 │   ├── main_routes.py       # 主页面路由
 │   ├── trading_routes.py    # 交易管理路由
 │   ├── strategy_routes.py   # 策略管理路由
 │   ├── analysis_routes.py   # 分析功能路由
-│   └── api_routes.py        # REST API路由
+│   ├── api_routes.py        # REST API路由
+│   └── admin_routes.py      # 管理与数据库诊断路由
 ├── utils/                   # 🛠️ 工具模块
 │   ├── helpers.py           # 辅助函数
 │   └── decorators.py        # 装饰器
@@ -216,14 +218,20 @@ python3 -m unittest tests.functional.*
 
 ## 📊 API架构
 
-### REST API设计
+### REST API设计（选摘）
 
 | 端点 | 方法 | 功能 | 服务层 |
 |------|------|------|--------|
 | `/api/strategies` | GET | 获取策略列表 | StrategyService |
-| `/api/strategy_score` | GET | 获取策略评分 | AnalysisService |
 | `/api/tags` | GET | 获取标签列表 | StrategyService |
 | `/api/tag/create` | POST | 创建标签 | StrategyService |
+| `/api/tag/<id>/update` | POST | 更新标签 | StrategyService |
+| `/api/tag/<id>/delete` | POST | 删除标签 | StrategyService |
+| `/api/symbol_lookup` | GET | 通过标的代码回填常用名称 | DatabaseService |
+| `/api/trade_detail/<detail_id>` | GET | 获取单条交易明细 | DatabaseService |
+| `/api/quick_sell` | POST | 快捷卖出 | TradingService |
+| `/api/strategy_score` | GET | 获取策略评分（附带评分字段） | AnalysisService |
+| `/api/strategy_trend` | GET | 获取策略趋势数据 | AnalysisService |
 
 ### 服务层设计（口径）
 
@@ -239,11 +247,11 @@ python3 -m unittest tests.functional.*
 ## 💾 数据架构
 
 ### 核心业务表
-- **trades**: 交易主表，记录每个标的在各策略下的汇总信息
-- **trade_details**: 交易明细表，记录每笔买入/卖出操作
+- **trades**: 交易主表，记录每个标的在各策略下的汇总信息（含软删除与费用统计字段）
+- **trade_details**: 交易明细表，记录每笔买入/卖出操作（含费用、软删除与盈亏字段）
 - **strategies**: 策略定义表，支持动态策略管理
-- **tags**: 标签表，预定义和自定义标签
-- **strategy_tags**: 策略标签关系表，多对多关联
+- **strategy_tags**: 标签表（预定义+自定义）
+- **strategy_tag_relations**: 策略与标签多对多关系表
 
 ### 审计和保护表
 - **trade_modifications**: 交易修改历史表，完整审计跟踪
