@@ -97,7 +97,7 @@
                             </div>
                             <div class="col-6">
                                 <div>
-                                    <strong>{{ score.stats.win_rate }}%</strong>
+                                    <strong>{{ '%.2f'|format(score.stats.win_rate) }}%</strong>
                                 </div>
                                 <div class="text-muted">胜率</div>
                             </div>
@@ -111,7 +111,7 @@
                             </div>
                             <div class="col-6">
                                 <div>
-                                    <strong>{{ score.stats.avg_holding_days }}天</strong>
+                                    <strong>{{ '%.0f'|format(score.stats.avg_holding_days) }}天</strong>
                                 </div>
                                 <div class="text-muted">持仓</div>
                             </div>

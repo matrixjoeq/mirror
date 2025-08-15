@@ -268,13 +268,19 @@ def normalize_trade_detail_row(detail: Dict[str, Any]) -> Dict[str, Any]:
 
 def dict_to_trade_detail_dto(d: Dict[str, Any]) -> TradeDetailDTO:
     n = normalize_trade_detail_row(d)
+    # 显示口径统一：交易金额为不含任何费用的成交额（价格×数量）
+    # 存储层的 amount 历史上包含了买入加费/卖出减费，这里用于前端展示与统计一律改为不含费
+    try:
+        amount_ex_fee = float(n.get('price', 0) or 0) * int(n.get('quantity', 0) or 0)
+    except Exception:
+        amount_ex_fee = float(n.get('amount', 0) or 0)
     return TradeDetailDTO(
         id=int(n.get('id', 0) or 0),
         trade_id=int(n.get('trade_id', 0) or 0),
         transaction_type=n.get('transaction_type', 'buy'),
         price=float(n.get('price', 0) or 0),
         quantity=int(n.get('quantity', 0) or 0),
-        amount=float(n.get('amount', 0) or 0),
+        amount=amount_ex_fee,
         transaction_date=str(n.get('transaction_date') or ''),
         transaction_fee=float(n.get('transaction_fee', 0) or 0),
         buy_reason=n.get('buy_reason', ''),

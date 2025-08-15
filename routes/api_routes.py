@@ -165,6 +165,65 @@ def quick_sell():
     return jsonify({'success': ok, 'message': msg})
 
 
+@api_bp.route('/modify_trade_detail', methods=['POST'])
+@handle_errors
+def modify_trade_detail():
+    """修改一条交易明细（价格、数量、手续费、理由等）。
+
+    前端来自 trade_details.html 的模态框提交。
+    为了兼容现有服务更新接口，这里根据 detail_id 反查 trade_id，
+    然后调用 TradingService.update_trade_record(trade_id, [update_dict]).
+    """
+    app = cast(Any, current_app)
+    db = app.db_service
+
+    form = request.form if not request.is_json else request.json
+    detail_id = form.get('detail_id')
+    if not detail_id:
+        return jsonify({'success': False, 'message': 'detail_id 不能为空'}), 400
+    try:
+        detail_id_int = int(detail_id)
+    except Exception:
+        return jsonify({'success': False, 'message': 'detail_id 非法'}), 400
+
+    # 反查 trade_id
+    row = db.execute_query(
+        'SELECT trade_id FROM trade_details WHERE id = ?',
+        (detail_id_int,),
+        fetch_one=True,
+    )
+    if not row:
+        return jsonify({'success': False, 'message': f'明细ID {detail_id_int} 不存在'}), 404
+    trade_id = int(row['trade_id'])
+
+    # 采集更新字段（仅传递有值的字段）
+    def _get_opt(name):
+        v = form.get(name)
+        return v if v not in (None, '') else None
+
+    update = {'detail_id': detail_id_int}
+    price = _get_opt('price')
+    quantity = _get_opt('quantity')
+    transaction_fee = _get_opt('transaction_fee')
+    buy_reason = _get_opt('buy_reason')
+    sell_reason = _get_opt('sell_reason')
+
+    if price is not None:
+        update['price'] = price
+    if quantity is not None:
+        update['quantity'] = quantity
+    if transaction_fee is not None:
+        update['transaction_fee'] = transaction_fee
+    if buy_reason is not None:
+        update['buy_reason'] = buy_reason
+    if sell_reason is not None:
+        update['sell_reason'] = sell_reason
+
+    trading_service = TradingService(app.db_service)
+    ok, msg = trading_service.update_trade_record(trade_id, [update])
+    return jsonify({'success': ok, 'message': msg})
+
+
 @api_bp.route('/tag/create', methods=['POST'])
 @handle_errors
 def create_tag():

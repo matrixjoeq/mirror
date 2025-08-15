@@ -39,15 +39,15 @@
                         <div class="col-md-6 mb-2">
                             <label class="form-label fw-bold">按状态筛选:</label>
                             <div class="btn-group w-100" role="group">
-                                <a href="{{ url_for("trading.trades") }}?status=all{% if current_strategy != 'all' %}&strategy={{ current_strategy }}{% endif %}"
+                                <a href="{{ url_for("trading.trades") }}?status=all{% if current_strategy != 'all' %}&strategy={{ current_strategy }}{% endif %}&page_size={{ page_size }}{% if symbols_query %}&symbols={{ symbols_query | urlencode }}{% endif %}{% if names_query %}&names={{ names_query | urlencode }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                                    class="btn btn-outline-primary {{ 'active' if current_status == 'all' else '' }}">
                                     全部
                                 </a>
-                                <a href="{{ url_for("trading.trades") }}?status=open{% if current_strategy != 'all' %}&strategy={{ current_strategy }}{% endif %}"
+                                <a href="{{ url_for("trading.trades") }}?status=open{% if current_strategy != 'all' %}&strategy={{ current_strategy }}{% endif %}&page_size={{ page_size }}{% if symbols_query %}&symbols={{ symbols_query | urlencode }}{% endif %}{% if names_query %}&names={{ names_query | urlencode }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                                    class="btn btn-outline-success {{ 'active' if current_status == 'open' else '' }}">
                                     持仓中
                                 </a>
-                                <a href="{{ url_for("trading.trades") }}?status=closed{% if current_strategy != 'all' %}&strategy={{ current_strategy }}{% endif %}"
+                                <a href="{{ url_for("trading.trades") }}?status=closed{% if current_strategy != 'all' %}&strategy={{ current_strategy }}{% endif %}&page_size={{ page_size }}{% if symbols_query %}&symbols={{ symbols_query | urlencode }}{% endif %}{% if names_query %}&names={{ names_query | urlencode }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                                    class="btn btn-outline-info {{ 'active' if current_status == 'closed' else '' }}">
                                     已平仓
                                 </a>
@@ -56,12 +56,12 @@
                         <div class="col-md-6 mb-2">
                             <label class="form-label fw-bold">按策略筛选:</label>
                             <div class="btn-group w-100" role="group">
-                                <a href="{{ url_for("trading.trades") }}?strategy=all{% if current_status != 'all' %}&status={{ current_status }}{% endif %}"
+                                <a href="{{ url_for("trading.trades") }}?strategy=all{% if current_status != 'all' %}&status={{ current_status }}{% endif %}&page_size={{ page_size }}{% if symbols_query %}&symbols={{ symbols_query | urlencode }}{% endif %}{% if names_query %}&names={{ names_query | urlencode }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                                    class="btn btn-outline-secondary {{ 'active' if current_strategy == 'all' else '' }}">
                                     全部策略
                                 </a>
                                 {% for s in strategies %}
-                                    <a href="{{ url_for("trading.trades") }}?strategy={{ s.id }}{% if current_status != 'all' %}&status={{ current_status }}{% endif %}"
+                                    <a href="{{ url_for("trading.trades") }}?strategy={{ s.id }}{% if current_status != 'all' %}&status={{ current_status }}{% endif %}&page_size={{ page_size }}{% if symbols_query %}&symbols={{ symbols_query | urlencode }}{% endif %}{% if names_query %}&names={{ names_query | urlencode }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                                        class="btn btn-outline-secondary {{ 'active' if current_strategy == (s.id|string) else '' }}">
                                         {{ s.name }}
                                     </a>
@@ -71,6 +71,48 @@
                     </div>
                 </div>
                 <div class="card-body">
+                    <!-- 页面大小/过滤器 -->
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-2 gap-2">
+                        <div class="small text-muted">
+                            共 {{ total_count or 0 }} 条记录
+                        </div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <div class="d-flex align-items-center gap-2">
+                                <label class="form-label mb-0">按代码过滤:</label>
+                                <input type="text" class="form-control form-control-sm" id="symbolsInput" placeholder="如: 600000, 000001" style="width: 280px;" value="{{ symbols_query or '' }}">
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <label class="form-label mb-0">按名称过滤:</label>
+                                <input type="text" class="form-control form-control-sm" id="namesInput" placeholder="如: 贵州茅台, 平安银行" style="width: 280px;" value="{{ names_query or '' }}">
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <label class="form-label mb-0">日期自:</label>
+                                <input type="date" class="form-control form-control-sm" id="dateFromInput" value="{{ date_from or '' }}">
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <label class="form-label mb-0">至:</label>
+                                <input type="date" class="form-control form-control-sm" id="dateToInput" value="{{ date_to or '' }}">
+                            </div>
+                            <div class="btn-group btn-group-sm" role="group" aria-label="快捷区间">
+                                <button class="btn btn-outline-secondary quick-range" data-days="7">最近7天</button>
+                                <button class="btn btn-outline-secondary quick-range" data-days="30">30天</button>
+                                <button class="btn btn-outline-secondary quick-range" data-days="60">60天</button>
+                                <button class="btn btn-outline-secondary quick-range" data-days="90">90天</button>
+                                <button class="btn btn-outline-secondary quick-range" data-days="180">180天</button>
+                                <button class="btn btn-outline-secondary quick-range" data-days="360">360天</button>
+                            </div>
+                            <button class="btn btn-sm btn-primary" id="applyFilterBtn">应用</button>
+                            <button class="btn btn-sm btn-outline-secondary" id="clearFilterBtn">清除</button>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="form-label mb-0">每页显示:</label>
+                            <select class="form-select form-select-sm" id="pageSizeSelect" style="width: auto;">
+                                {% for size in [25, 50, 100] %}
+                                    <option value="{{ size }}" {% if page_size == size %}selected{% endif %}>{{ size }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover">
                             <thead class="table-dark">
@@ -78,25 +120,62 @@
                                     <th>
                                         <input type="checkbox" id="selectAll" class="form-check-input">
                                     </th>
-                                    <th>ID</th>
-                                    <th>策略</th>
-                                    <th>标的代码</th>
-                                    <th>标的名称</th>
-                                    <th>开仓日期</th>
-                                    <th>平仓日期</th>
-                                    <th>状态</th>
-                                    <th>持仓/剩余数量</th>
-                                    <th>总买入金额</th>
-                                    <th>总卖出金额</th>
-                                    <th>总净利润</th>
-                                    <th>总净利率</th>
-                                    <th>总买入费用</th>
-                                    <th>总卖出费用</th>
-                                    <th>总毛利润</th>
-                                    <th>总毛利率</th>
-                                    <th>总交易费用</th>
-                                    <th>总费用占比</th>
-                                    <th>持仓天数</th>
+                                    {% macro sort_link(label, key) -%}
+                                        {% set params = [] %}
+                                        {% if current_status and current_status != 'all' %}
+                                            {% set _ = params.append('status=' ~ current_status) %}
+                                        {% endif %}
+                                        {% if current_strategy and current_strategy != 'all' %}
+                                            {% set _ = params.append('strategy=' ~ current_strategy) %}
+                                        {% endif %}
+                                        {% set _ = params.append('page_size=' ~ page_size) %}
+                                        {% if symbols_query %}
+                                            {% set _ = params.append('symbols=' ~ symbols_query | urlencode) %}
+                                        {% endif %}
+                                        {% if names_query %}
+                                            {% set _ = params.append('names=' ~ names_query | urlencode) %}
+                                        {% endif %}
+                                        {% if date_from %}
+                                            {% set _ = params.append('date_from=' ~ date_from) %}
+                                        {% endif %}
+                                        {% if date_to %}
+                                            {% set _ = params.append('date_to=' ~ date_to) %}
+                                        {% endif %}
+                                        {% set _ = params.append('sort=' ~ key) %}
+                                        {% set next_dir = 'asc' if sort_key != key or sort_dir == 'desc' else 'desc' %}
+                                        {% set _ = params.append('dir=' ~ next_dir) %}
+                                        <a class="text-decoration-none text-white" href="{{ url_for('trading.trades') }}?{{ '&'.join(params) }}">
+                                            {{ label }}
+                                            {% if sort_key == key %}
+                                                {% if sort_dir == 'asc' %}
+                                                    <i class="bi bi-caret-up-fill"></i>
+                                                {% else %}
+                                                    <i class="bi bi-caret-down-fill"></i>
+                                                {% endif %}
+                                            {% else %}
+                                                <i class="bi bi-arrow-down-up"></i>
+                                            {% endif %}
+                                        </a>
+                                    {%- endmacro %}
+                                    <th>{{ sort_link('ID', 'id') }}</th>
+                                    <th>{{ sort_link('策略', 'strategy_name') }}</th>
+                                    <th>{{ sort_link('标的代码', 'symbol_code') }}</th>
+                                    <th>{{ sort_link('标的名称', 'symbol_name') }}</th>
+                                    <th>{{ sort_link('开仓日期', 'open_date') }}</th>
+                                    <th>{{ sort_link('平仓日期', 'close_date') }}</th>
+                                    <th>{{ sort_link('状态', 'status') }}</th>
+                                    <th>{{ sort_link('持仓/剩余数量', 'remaining_quantity') }}</th>
+                                    <th>{{ sort_link('总买入金额', 'total_buy_amount') }}</th>
+                                    <th>{{ sort_link('总卖出金额', 'total_sell_amount') }}</th>
+                                    <th>{{ sort_link('总净利润', 'total_net_profit') }}</th>
+                                    <th>{{ sort_link('总净利率', 'total_net_profit_pct') }}</th>
+                                    <th>{{ sort_link('总买入费用', 'total_buy_fees') }}</th>
+                                    <th>{{ sort_link('总卖出费用', 'total_sell_fees') }}</th>
+                                    <th>{{ sort_link('总毛利润', 'total_profit_loss') }}</th>
+                                    <th>{{ sort_link('总毛利率', 'total_profit_loss_pct') }}</th>
+                                    <th>{{ sort_link('总交易费用', 'total_fees') }}</th>
+                                    <th>{{ sort_link('总费用占比', 'total_fee_ratio_pct') }}</th>
+                                    <th>{{ sort_link('持仓天数', 'holding_days') }}</th>
                                     <th>操作</th>
                                 </tr>
                             </thead>
@@ -234,6 +313,63 @@
                             </tbody>
                         </table>
                     </div>
+                    <!-- 分页控件 -->
+                    <nav aria-label="分页" class="mt-3">
+                        <ul class="pagination mb-0">
+                            {% set qs_base = [] %}
+                            {% if current_status and current_status != 'all' %}
+                                {% set _ = qs_base.append('status=' ~ current_status) %}
+                            {% endif %}
+                            {% if current_strategy and current_strategy != 'all' %}
+                                {% set _ = qs_base.append('strategy=' ~ current_strategy) %}
+                            {% endif %}
+                            {% set _ = qs_base.append('page_size=' ~ page_size) %}
+                            {% if sort_key %}
+                                {% set _ = qs_base.append('sort=' ~ sort_key) %}
+                            {% endif %}
+                            {% if sort_dir %}
+                                {% set _ = qs_base.append('dir=' ~ sort_dir) %}
+                            {% endif %}
+                            {% if symbols_query %}
+                                {% set _ = qs_base.append('symbols=' ~ symbols_query | urlencode) %}
+                            {% endif %}
+                            {% if names_query %}
+                                {% set _ = qs_base.append('names=' ~ names_query | urlencode) %}
+                            {% endif %}
+                            {% if date_from %}
+                                {% set _ = qs_base.append('date_from=' ~ date_from) %}
+                            {% endif %}
+                            {% if date_to %}
+                                {% set _ = qs_base.append('date_to=' ~ date_to) %}
+                            {% endif %}
+                            {% set base_query = '&'.join(qs_base) %}
+
+                            {# 上一页 #}
+                            {% set prev_page = 1 if page <= 1 else page - 1 %}
+                            <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('trading.trades') }}?{{ base_query }}&page={{ prev_page }}" aria-label="上一页">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+
+                            {# 页码 #}
+                            {% set start = page - 2 if page - 2 > 1 else 1 %}
+                            {% set end = page + 2 if page + 2 < total_pages else total_pages %}
+                            {% for p in range(start, end + 1) %}
+                                <li class="page-item {{ 'active' if p == page else '' }}">
+                                    <a class="page-link" href="{{ url_for('trading.trades') }}?{{ base_query }}&page={{ p }}">{{ p }}</a>
+                                </li>
+                            {% endfor %}
+
+                            {# 下一页 #}
+                            {% set next_page = total_pages if page >= total_pages else page + 1 %}
+                            <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('trading.trades') }}?{{ base_query }}&page={{ next_page }}" aria-label="下一页">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
                 </div>
             </div>
         </div>
@@ -429,6 +565,67 @@ document.addEventListener('DOMContentLoaded', function() {
             showDeleteModal(Array.from(checkedBoxes).map(cb => cb.value));
         });
     }
+
+    // 分页大小切换
+    const pageSizeSelect = document.getElementById('pageSizeSelect');
+    if (pageSizeSelect) {
+        pageSizeSelect.addEventListener('change', function() {
+            const params = new URLSearchParams(window.location.search);
+            params.set('page_size', this.value);
+            params.set('page', '1'); // 切换每页数量后回到第一页
+            window.location.href = `${window.location.pathname}?${params.toString()}`;
+        });
+    }
+
+    // 代码/名称/日期过滤应用/清除
+    const symbolsInput = document.getElementById('symbolsInput');
+    const namesInput = document.getElementById('namesInput');
+    const dateFromInput = document.getElementById('dateFromInput');
+    const dateToInput = document.getElementById('dateToInput');
+    const applyFilterBtn = document.getElementById('applyFilterBtn');
+    const clearFilterBtn = document.getElementById('clearFilterBtn');
+    if (applyFilterBtn) {
+        applyFilterBtn.addEventListener('click', function() {
+            const params = new URLSearchParams(window.location.search);
+            const sVal = (symbolsInput && symbolsInput.value || '').trim();
+            const nVal = (namesInput && namesInput.value || '').trim();
+            const dfVal = (dateFromInput && dateFromInput.value || '').trim();
+            const dtVal = (dateToInput && dateToInput.value || '').trim();
+            if (sVal) { params.set('symbols', sVal); } else { params.delete('symbols'); }
+            if (nVal) { params.set('names', nVal); } else { params.delete('names'); }
+            if (dfVal) { params.set('date_from', dfVal); } else { params.delete('date_from'); }
+            if (dtVal) { params.set('date_to', dtVal); } else { params.delete('date_to'); }
+            params.set('page', '1');
+            window.location.href = `${window.location.pathname}?${params.toString()}`;
+        });
+    }
+    if (clearFilterBtn) {
+        clearFilterBtn.addEventListener('click', function() {
+            const params = new URLSearchParams(window.location.search);
+            params.delete('symbols');
+            params.delete('names');
+            params.delete('date_from');
+            params.delete('date_to');
+            params.set('page', '1');
+            window.location.href = `${window.location.pathname}?${params.toString()}`;
+        });
+    }
+
+    // 快捷日期区间
+    document.querySelectorAll('.quick-range').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const days = parseInt(this.getAttribute('data-days'), 10);
+            if (!isNaN(days)) {
+                const today = new Date();
+                const from = new Date();
+                from.setDate(today.getDate() - days + 1);
+                const toStr = today.toISOString().slice(0,10);
+                const fromStr = from.toISOString().slice(0,10);
+                if (dateFromInput) dateFromInput.value = fromStr;
+                if (dateToInput) dateToInput.value = toStr;
+            }
+        });
+    });
 
     // 生成确认码
     const generateCodeBtn = document.getElementById('generateCodeBtn');

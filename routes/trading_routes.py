@@ -25,6 +25,9 @@ def trades():
         # 获取筛选参数
         status = request.args.get('status', 'all')
         strategy_arg = request.args.get('strategy', 'all')
+        # 分页参数
+        page_arg = request.args.get('page', '1')
+        page_size_arg = request.args.get('page_size', '25')
 
         # 归一化筛选值供服务层使用（'all' 等价于不筛选）
         status_filter = None if not status or status == 'all' else status
@@ -35,19 +38,106 @@ def trades():
             except ValueError:
                 strategy_filter = strategy_arg
 
-        # 获取交易数据
-        all_trades_dto = trading_service.get_all_trades(status=status_filter, strategy=strategy_filter, return_dto=True)
+        # 解析分页参数（容错）
+        try:
+            page = int(page_arg)
+        except Exception:
+            page = 1
+        try:
+            page_size = int(page_size_arg)
+        except Exception:
+            page_size = 25
+        if page < 1:
+            page = 1
+        if page_size not in (25, 50, 100):
+            page_size = 25
+
+        # 表头排序参数
+        sort_key = request.args.get('sort', 'open_date')
+        sort_dir = request.args.get('dir', 'desc').lower()
+        if sort_dir not in ('asc', 'desc'):
+            sort_dir = 'desc'
+        # 允许排序的列（白名单），映射到安全的 SQL 列
+        allowed_sort_columns = {
+            'id': 't.id',
+            'strategy_name': 's.name',
+            'symbol_code': 't.symbol_code',
+            'symbol_name': 't.symbol_name',
+            'open_date': 't.open_date',
+            'close_date': 't.close_date',
+            'status': 't.status',
+            'remaining_quantity': 't.remaining_quantity',
+            'total_buy_amount': 't.total_buy_amount',
+            'total_sell_amount': 't.total_sell_amount',
+            'total_net_profit': 't.total_net_profit',
+            'total_net_profit_pct': 't.total_net_profit_pct',
+            'total_buy_fees': 't.total_buy_fees',
+            'total_sell_fees': 't.total_sell_fees',
+            'total_profit_loss': 't.total_profit_loss',
+            'total_profit_loss_pct': 't.total_profit_loss_pct',
+            'total_fees': 't.total_fees',
+            'total_fee_ratio_pct': 't.total_fee_ratio_pct',
+            'holding_days': 't.holding_days',
+        }
+        order_col = allowed_sort_columns.get(sort_key, 't.open_date')
+        order_by = f"{order_col} {'DESC' if sort_dir == 'desc' else 'ASC'}"
+
+        # 标的代码过滤（支持多个，逗号/空格分隔）
+        symbols_raw = request.args.get('symbols', '').strip()
+        symbols_list = []
+        if symbols_raw:
+            # 支持逗号、空白分隔，统一去重与标准化大小写
+            tmp = [p for chunk in symbols_raw.replace('，', ',').split(',') for p in chunk.split()] if symbols_raw else []
+            symbols_list = list({s.strip().upper() for s in tmp if s.strip()})
+
+        # 标的名称过滤（支持多个，逗号/空格分隔）
+        names_raw = request.args.get('names', '').strip()
+        names_list = []
+        if names_raw:
+            tmp = [p for chunk in names_raw.replace('，', ',').split(',') for p in chunk.split()] if names_raw else []
+            names_list = list({s.strip().upper() for s in tmp if s.strip()})
+
+        # 日期区间过滤参数（YYYY-MM-DD）
+        date_from = request.args.get('date_from', '').strip() or None
+        date_to = request.args.get('date_to', '').strip() or None
+
+        # 获取交易数据（分页）
+        trades_dto, total_count = trading_service.get_trades_paginated(
+            status=status_filter,
+            strategy=strategy_filter,
+            order_by=order_by,
+            page=page,
+            page_size=page_size,
+            return_dto=True,
+            symbols=symbols_list,
+            symbol_names=names_list,
+            date_from=date_from,
+            date_to=date_to,
+        )
         strategies_list_raw = strategy_service.get_all_strategies(return_dto=True)
 
         # 路由层对 DTO 做轻度字典化，便于模板渲染
-        all_trades = dto_list_to_dicts(all_trades_dto)
+        all_trades = dto_list_to_dicts(trades_dto)
         strategies_list = dto_list_to_dicts(strategies_list_raw)
+
+        # 分页元信息
+        total_pages = (total_count + page_size - 1) // page_size if page_size > 0 else 1
 
         return render_template('trades.html',
                              trades=all_trades,
                              strategies=strategies_list,
                              current_status=status,
-                             current_strategy=str(strategy_arg))
+                             current_strategy=str(strategy_arg),
+                             sort_key=sort_key,
+                             sort_dir=sort_dir,
+                             symbols_query=symbols_raw,
+                             names_query=names_raw,
+                             date_from=date_from or '',
+                             date_to=date_to or '',
+                             page=page,
+                             page_size=page_size,
+                             total_count=total_count,
+                             total_pages=total_pages)
 
     except Exception as e:
         current_app.logger.error(f"交易列表加载失败: {str(e)}")

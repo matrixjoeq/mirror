@@ -123,19 +123,106 @@ def strategy_detail(strategy_id):
 
 @analysis_bp.route('/symbol_comparison')
 def symbol_comparison():
-    """股票对比页面"""
+    """按标的比较策略（列表形式，支持排序/过滤/分页）"""
     try:
         analysis_service = AnalysisService(current_app.db_service)
-        symbols = analysis_service.get_all_symbols()
-        # 提供策略数据给前端，便于渲染与异步评分
         strategy_service = StrategyService(current_app.db_service)
-        strategies_data = dto_list_to_dicts(strategy_service.get_all_strategies(return_dto=True))
-        
-        return render_template('symbol_comparison.html', symbols=symbols, strategies_data=strategies_data)
-        
+
+        # 查询参数：过滤与分页
+        code_filter = (request.args.get('symbols', '') or '').strip()
+        name_filter = (request.args.get('names', '') or '').strip()
+        page_arg = request.args.get('page', '1')
+        page_size_arg = request.args.get('page_size', '25')
+        sort_key = request.args.get('sort', 'symbol_code')
+        sort_dir = request.args.get('dir', 'asc').lower()
+        if sort_dir not in ('asc', 'desc'):
+            sort_dir = 'asc'
+
+        # 获取全部标的
+        all_symbols = analysis_service.get_all_symbols()
+
+        # 过滤（代码/名称，支持逗号与空格，取交集）
+        def parse_multi(val: str) -> set[str]:
+            if not val:
+                return set()
+            parts = []
+            for chunk in val.replace('，', ',').split(','):
+                parts.extend(chunk.split())
+            return {p.strip().upper() for p in parts if p.strip()}
+
+        codes = parse_multi(code_filter)
+        names = parse_multi(name_filter)
+
+        def match(item: dict) -> bool:
+            c_ok = True if not codes else (str(item.get('symbol_code','')).upper() in codes)
+            n_ok = True if not names else (str(item.get('symbol_name','')).upper() in names)
+            return c_ok and n_ok
+
+        filtered = [s for s in all_symbols if match(s)]
+
+        # 排序
+        allowed = {
+            'symbol_code': 'symbol_code',
+            'symbol_name': 'symbol_name',
+            'trade_count': 'trade_count',
+        }
+        key = allowed.get(sort_key, 'symbol_code')
+        reverse = (sort_dir == 'desc')
+        filtered.sort(key=lambda x: (x.get(key) or ''), reverse=reverse)
+
+        # 分页
+        try:
+            page = max(1, int(page_arg))
+        except Exception:
+            page = 1
+        try:
+            page_size = int(page_size_arg)
+        except Exception:
+            page_size = 25
+        if page_size not in (25, 50, 100):
+            page_size = 25
+        total_count = len(filtered)
+        total_pages = (total_count + page_size - 1) // page_size if page_size > 0 else 1
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_items = filtered[start:end]
+
+        strategies_list = dto_list_to_dicts(strategy_service.get_all_strategies(return_dto=True))
+        # 计算当前页每个标的在各策略下的总分（无交易显示 None）
+        symbol_strategy_scores: dict[str, dict[int, dict[str, float | str | None]]] = {}
+        for sym in page_items:
+            sc_map: dict[int, dict[str, float | str | None]] = {}
+            try:
+                scores = analysis_service.get_strategies_scores_by_symbol(sym['symbol_code'])
+                # 构建 {strategy_id: {total: x.x, rating: 'A'}} 映射
+                for sc in scores:
+                    fields = analysis_service.compute_score_fields(sc.get('stats', {})) if isinstance(sc, dict) else {}
+                    sc_map[int(sc.get('strategy_id') or 0)] = {
+                        'total': float(fields.get('total_score', 0.0)),
+                        'rating': str(fields.get('rating', '')),
+                    }
+            except Exception:
+                pass
+            symbol_strategy_scores[str(sym['symbol_code'])] = sc_map
+
+        return render_template(
+            'symbol_comparison_list.html',
+            symbols=page_items,
+            strategies=strategies_list,
+            symbol_strategy_scores=symbol_strategy_scores,
+            total_count=total_count,
+            total_pages=total_pages,
+            page=page,
+            page_size=page_size,
+            sort_key=sort_key,
+            sort_dir=sort_dir,
+            symbols_query=code_filter,
+            names_query=name_filter,
+        )
+
     except Exception as e:
         current_app.logger.error(f"股票对比页面加载失败: {str(e)}")
-        return render_template('symbol_comparison.html', symbols=[], strategies_data=[])
+        return render_template('symbol_comparison_list.html', symbols=[], strategies_data=[], total_count=0, total_pages=1, page=1, page_size=25, sort_key='symbol_code', sort_dir='asc', symbols_query='', names_query='')
 
 
 @analysis_bp.route('/symbol_detail/<symbol_code>')
