@@ -1,5 +1,15 @@
 ## Changelog
 
+### 2025-08-16
+- 分析指标增强：
+  - 在策略评分计算中补充并返回夏普比率与卡玛比率字段，字段名分别为 `sharpe_ratio` 与 `calmar_ratio`；并确保 `annual_volatility`、`annual_return`、`max_drawdown`、`sharpe_ratio`、`calmar_ratio` 在异常时回退为 0.0，不阻塞页面显示。
+  - 实现细节：`services/analysis_service.py` 扩展 `_compute_advanced_metrics` 返回 5 元组（年化波动率、年化收益率、最大回撤、夏普、卡玛），`calculate_strategy_score` 将其写入 `stats`。
+  - 兼容两种依赖：优先使用 `empyrical`，失败时回退 `empyrical_reloaded`；若依赖缺失或计算异常，统一回退 0.0。
+  - UI：`templates/strategy_detail.html` “各标的表现明细”表格新增列：年化波动率、年化收益率、最大回撤、夏普比率、卡玛比率。
+- 新增指标：换手率
+  - 口径：区间内买卖成交额（不含费）之和与总投入（不含费）的比值，以百分比显示（如 250.00% 表示 2.5 倍）。
+  - 实现：在 `services/analysis_service.py` 聚合 `buy_gross` 和 `sell_gross` 计算 `turnover_rate` 字段；模板 `templates/strategy_detail.html` 增加“换手率”列。
+
 ### 2025-08-15
 - 交易记录页新增分页与每页条数选择：
   - 前端 `templates/trades.html` 增加“每页显示 25/50/100”下拉与分页控件；切换条数回到第1页。

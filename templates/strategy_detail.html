@@ -184,6 +184,12 @@
                                         <th>持仓天数</th>
                                         <th>交易费用</th>
                                         <th>费用占比</th>
+                                        <th>换手率</th>
+                                        <th>年化波动率</th>
+                                        <th>年化收益率</th>
+                                        <th>最大回撤</th>
+                                        <th>夏普比率</th>
+                                        <th>卡玛比率</th>
                                         <th>三角图</th>
                                     </tr>
                                 </thead>
@@ -227,6 +233,12 @@
                                             <td>{{ score.stats.avg_holding_days }}</td>
                                             <td>{{ score.stats.total_transaction_fees }}</td>
                                             <td>{{ score.stats.total_fee_ratio }}%</td>
+                                            <td>{{ '%.2f'|format(score.stats.turnover_rate or 0) }}%</td>
+                                            <td>{{ '%.2f'|format(((score.stats.annual_volatility or 0) * 100)) }}%</td>
+                                            <td>{{ '%.2f'|format(((score.stats.annual_return or 0) * 100)) }}%</td>
+                                            <td>{{ '%.2f'|format((-(score.stats.max_drawdown or 0) * 100)) }}%</td>
+                                            <td>{{ '%.2f'|format(score.stats.sharpe_ratio or 0) }}</td>
+                                            <td>{{ '%.2f'|format(score.stats.calmar_ratio or 0) }}</td>
                                             <td>
                                                 <canvas id="triangle-{{ score.symbol_code }}" width="80" height="70"></canvas>
                                             </td>

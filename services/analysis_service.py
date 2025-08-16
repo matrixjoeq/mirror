@@ -66,15 +66,19 @@ class AnalysisService:
         # 附加高级风险/收益指标（使用专业库计算）
         try:
             trade_ids = [int(t['id']) for t in trades]
-            ann_vol, ann_ret, mdd = self._compute_advanced_metrics(trade_ids, start_date, end_date)
+            ann_vol, ann_ret, mdd, sharpe, calmar = self._compute_advanced_metrics(trade_ids, start_date, end_date)
             result['stats']['annual_volatility'] = float(ann_vol)
             result['stats']['annual_return'] = float(ann_ret)
             result['stats']['max_drawdown'] = float(mdd)
+            result['stats']['sharpe_ratio'] = float(sharpe)
+            result['stats']['calmar_ratio'] = float(calmar)
         except Exception:
             # 出错时保持兼容（不阻塞主流程）
             result['stats'].setdefault('annual_volatility', 0.0)
             result['stats'].setdefault('annual_return', 0.0)
             result['stats'].setdefault('max_drawdown', 0.0)
+            result['stats'].setdefault('sharpe_ratio', 0.0)
+            result['stats'].setdefault('calmar_ratio', 0.0)
         if return_dto:
             return ScoreDTO(
                 strategy_id=strategy_id,
@@ -382,6 +386,9 @@ class AnalysisService:
         total_fees = Decimal('0')
         sum_profit = Decimal('0')
         sum_loss_abs = Decimal('0')
+        # 累计成交额（不含费），用于换手率计算
+        total_buy_gross_amount = Decimal('0')
+        total_sell_gross_amount = Decimal('0')
 
         details = []
 
@@ -424,6 +431,9 @@ class AnalysisService:
                 sell_gross = _get_dec(sells, 'sell_gross') if sells else Decimal('0')
                 sell_qty = _get_dec(sells, 'sell_qty') if sells else Decimal('0')
                 sell_fees = _get_dec(sells, 'sell_fees') if sells else Decimal('0')
+                # 累加买卖成交额（不含费）
+                total_buy_gross_amount += buy_gross
+                total_sell_gross_amount += sell_gross
                 avg_buy_ex = (buy_gross / buy_qty) if buy_qty > 0 else Decimal('0')
                 trade_gross_profit = sell_gross - avg_buy_ex * sell_qty
                 trade_net_profit = trade_gross_profit - sell_fees
@@ -475,6 +485,14 @@ class AnalysisService:
         else:
             profit_loss_ratio = 0.0
 
+        # 换手率：区间内买卖成交额之和相对总投入（不含费）。
+        # 结果以百分比形式返回（如 250.00 表示 2.5 倍）。
+        try:
+            turnover_ratio = float(((total_buy_gross_amount + total_sell_gross_amount) / total_investment)) if total_investment > 0 else 0.0
+        except Exception:
+            turnover_ratio = 0.0
+        turnover_rate_pct = float(turnover_ratio * 100.0)
+
         return {
             'stats': {
                 'total_trades': total_trades,
@@ -493,6 +511,8 @@ class AnalysisService:
                 'total_net_return': float(total_net_return),
                 'total_net_return_rate': total_net_return_rate,
                 'avg_net_return_per_trade': avg_net_return_per_trade,
+                # 新增：换手率
+                'turnover_rate': turnover_rate_pct,
             },
             'details': details
         }
@@ -506,8 +526,8 @@ class AnalysisService:
         trade_ids: List[int],
         start_date: Optional[str],
         end_date: Optional[str]
-    ) -> Tuple[float, float, float]:
-        """基于卖出事件构建日收益序列，并计算年化波动率/年化收益率/最大回撤。
+    ) -> Tuple[float, float, float, float, float]:
+        """基于卖出事件构建日收益序列，并计算年化波动率/年化收益率/最大回撤/夏普/卡玛。
 
         说明：
         - 日收益构造：以每个卖出明细相对于该交易加权买入均价的不含费毛收益率为当日收益，
@@ -515,7 +535,7 @@ class AnalysisService:
         - 指标计算：严格委托于 empyrical 库，不自行编码公式。
         """
         if not trade_ids:
-            return 0.0, 0.0, 0.0
+            return 0.0, 0.0, 0.0, 0.0, 0.0
 
         try:
             import numpy as np  # noqa: F401
@@ -525,7 +545,7 @@ class AnalysisService:
             except Exception:
                 import empyrical_reloaded as ep
         except Exception:
-            return 0.0, 0.0, 0.0
+            return 0.0, 0.0, 0.0, 0.0, 0.0
 
         # 读取每个 trade 的买入聚合（用于计算加权买入均价）
         in_clause = ','.join(['?'] * len(trade_ids))
@@ -569,7 +589,7 @@ class AnalysisService:
         """
         sell_rows = self.db.execute_query(sells_sql, tuple(params))
         if not sell_rows:
-            return 0.0, 0.0, 0.0
+            return 0.0, 0.0, 0.0, 0.0, 0.0
 
         # 聚合到日期：按卖出份额对每笔 (price - avg_buy)/avg_buy 加权
         by_date: Dict[str, Dict[str, float]] = {}
@@ -587,7 +607,7 @@ class AnalysisService:
             bucket['w'] += qty
 
         if not by_date:
-            return 0.0, 0.0, 0.0
+            return 0.0, 0.0, 0.0, 0.0, 0.0
 
         # 构造 pandas Series（日频，缺失天填充 0）
         data = []
@@ -604,9 +624,18 @@ class AnalysisService:
             ann_vol = float(ep.annual_volatility(ret_series))
             ann_ret = float(ep.annual_return(ret_series))
             mdd = float(ep.max_drawdown(ret_series))
-            return ann_vol, ann_ret, mdd
+            try:
+                # 兼容 empyrical 与 empyrical_reloaded 两种包的 API
+                sharpe = float(getattr(ep, 'sharpe_ratio', ep.stats.sharpe_ratio)(ret_series))
+            except Exception:
+                sharpe = 0.0
+            try:
+                calmar = float(getattr(ep, 'calmar_ratio', ep.stats.calmar_ratio)(ret_series))
+            except Exception:
+                calmar = 0.0
+            return ann_vol, ann_ret, mdd, sharpe, calmar
         except Exception:
-            return 0.0, 0.0, 0.0
+            return 0.0, 0.0, 0.0, 0.0, 0.0
 
     def _get_strategy_by_name(self, strategy_name: str) -> Optional[Dict[str, Any]]:
         """根据名称获取策略"""
