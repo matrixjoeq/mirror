@@ -10,7 +10,7 @@ import time
 from flask import Flask
 
 from config import config
-from routes import main_bp, trading_bp, strategy_bp, analysis_bp, api_bp, admin_bp
+from routes import main_bp, trading_bp, strategy_bp, analysis_bp, api_bp, admin_bp, macro_bp, api_macro_bp
 
 
 def create_app(config_name=None):
@@ -31,9 +31,13 @@ def create_app(config_name=None):
     app.register_blueprint(analysis_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(admin_bp)
+    # 宏观观察体系（MVP）
+    app.register_blueprint(macro_bp)
+    app.register_blueprint(api_macro_bp)
 
     # 初始化并挂载服务到 app（供路由通过 current_app 使用）
     from services import DatabaseService, TradingService, StrategyService, AnalysisService
+    from services.macro_service import MacroService
     # 在测试环境下为每个 app 实例创建独立的临时数据库文件，避免污染产品库
     db_path = None
     if config_name == 'testing':
@@ -43,6 +47,7 @@ def create_app(config_name=None):
     app.trading_service = TradingService(app.db_service)
     app.strategy_service = StrategyService(app.db_service)
     app.analysis_service = AnalysisService(app.db_service)
+    app.macro_service = MacroService(app.db_service)
     # 兼容旧引用
     app.tracker = app.trading_service
     

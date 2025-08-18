@@ -583,6 +583,19 @@ class TestSystemIntegration(unittest.TestCase):
         # 测试标签CRUD API功能
         print("✓ 标签CRUD API功能已实现，测试通过")
     
+    def test_macro_endpoints_integration(self):
+        """覆盖宏观观察系统基础端点（快照/国家/打分/刷新）。"""
+        r_dash = self.client.get('/macro')
+        self.assertEqual(r_dash.status_code, 200)
+        r_snap = self.client.get('/api/macro/snapshot')
+        self.assertEqual(r_snap.status_code, 200)
+        r_cty = self.client.get('/api/macro/country?economy=US')
+        self.assertEqual(r_cty.status_code, 200)
+        r_score = self.client.get('/api/macro/score?entity_type=macro&entity_id=US&view=value')
+        self.assertEqual(r_score.status_code, 200)
+        r_ref = self.client.post('/api/macro/refresh')
+        self.assertEqual(r_ref.status_code, 200)
+    
     def test_api_strategy_trend(self):
         """测试策略趋势API"""
         print("\n=== 测试策略趋势API ===")

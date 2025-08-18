@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+  <h2>宏观 - 国家详情（MVP）</h2>
+  <p>经济体：{{ data.economy }} | 窗口：{{ data.window }}</p>
+  <div class="alert alert-info">时间序列与评分将在后续迭代接入，当前为占位展示。</div>
+  <pre>{{ data | tojson(indent=2) }}</pre>
+  <p><a href="/api/macro/country?economy={{ data.economy }}">API /api/macro/country</a></p>
+{% endblock %}
+
+

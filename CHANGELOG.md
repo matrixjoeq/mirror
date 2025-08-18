@@ -1,5 +1,21 @@
 ## Changelog
 
+## feat: 宏观观察体系 MVP 脚手架
+- 新增文档 `doc/plans/macro_observation_mvp.md`，定义目标、指标、数据源、API 与页面。
+- 新增服务层 `services/macro_service.py`、仓储层 `services/macro_repository.py`、Provider 适配目录 `services/data_providers/`。
+- 新增页面路由 `routes/macro_routes.py` 与 API 路由 `routes/api_macro.py`（/api/macro/snapshot|country|score）。
+- 新增模板 `templates/macro_dashboard.html` 与 `templates/macro_country.html`。
+- 在 `app.py` 注册 `macro_bp` 与 `api_macro_bp`，并在应用实例上挂载 `macro_service`。
+- 兼容数据库层：新增宏观/商品/汇率/评分表结构的幂等创建逻辑（在仓储初始化中确保）。
+  - 增量实现：
+    - `MacroRepository` 新增 `bulk_upsert_macro_series`、`fetch_macro_series_by_economy`、`has_any_data`、`upsert_score`；
+    - `MacroRepository` 继续增强：`bulk_upsert_commodity_series`、`bulk_upsert_fx_series`、`fetch_latest_by_indicator`；
+    - `MacroService` 集成仓储与配置，首次访问自动写入最小样本数据；`get_snapshot` 基于最新值做方向一致的 min-max 聚合输出矩阵与排行；`get_country` 返回序列与占位综合分；新增 `refresh_all()`；
+    - `routes/api_macro.py` 新增 `POST /api/macro/refresh`；
+    - 新增配置与Provider：`services/macro_config.py`（经济体/指标方向/开关）、`services/data_providers/market_provider.py`（商品/汇率样本+预留联网路径）；
+    - 评分与可视化：`MacroService.get_snapshot` 支持 `zscore`、`percentile` 评分方法；`templates/macro_dashboard.html` 增加视图/窗口切换与进度条热力可视化、排行列表；
+    - 测试增强：扩展 `tests/unit/test_macro_mvp_scaffolding.py`；新增 `tests/unit/test_macro_repository_and_service.py`、`tests/unit/test_macro_providers_and_repo_readers.py`、`tests/unit/test_macro_scoring_methods.py`、`tests/functional/test_macro_routes_and_api.py` 覆盖刷新与评分路径、API 与页面。
+
 ### 2025-08-16
 - 分析指标增强：
   - 在策略评分计算中补充并返回夏普比率与卡玛比率字段，字段名分别为 `sharpe_ratio` 与 `calmar_ratio`；并确保 `annual_volatility`、`annual_return`、`max_drawdown`、`sharpe_ratio`、`calmar_ratio` 在异常时回退为 0.0，不阻塞页面显示。

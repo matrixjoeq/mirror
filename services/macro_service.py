@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+宏观观察体系 - 服务层（MVP脚手架）
+
+说明：
+- 提供对外 API 所需的最小可用接口，返回结构化结果，便于前端/模板渲染。
+- 真实数据接入通过 MacroRepository + Provider 适配层逐步完善。
+"""
+
+from __future__ import annotations
+
+from typing import Optional, Dict, Any, List, Tuple
+
+from .database_service import DatabaseService
+from .macro_repository import MacroRepository
+from .macro_config import ECONOMIES, COMMODITIES, INDICATORS
+from .data_providers.market_provider import fetch_commodities_latest, fetch_fx_latest
+from .data_providers.worldbank_provider import fetch_macro_latest as wb_fetch_macro_latest
+
+
+class MacroService:
+    """宏观观察服务（MVP）"""
+
+    def __init__(self, db_service: DatabaseService):
+        self.db = db_service
+        self.repo = MacroRepository(db_service)
+
+    # --------- 对外接口（API/页面使用） ---------
+    def get_snapshot(self, view: str = "value", date: Optional[str] = None, window: Optional[str] = None) -> Dict[str, Any]:
+        """返回热力/排行快照。
+        若无数据，先进行一次最小样本数据的种子写入，保证页面/API 可用。
+        """
+        if not self.repo.has_any_data():
+            self._seed_minimal_sample()
+        economies = ECONOMIES
+        commodities = COMMODITIES
+        # 计算最新值
+        indicators_directions: List[Tuple[str, int]] = [(k, d) for k, (d, _w) in INDICATORS.items()]
+        latest_values: Dict[str, Dict[str, float]] = {eco: {} for eco in economies}
+        for ind, _dir in indicators_directions:
+            latest_map = self.repo.fetch_latest_by_indicator(ind)
+            for eco in economies:
+                if eco in latest_map:
+                    latest_values[eco][ind] = latest_map[eco]
+
+        # 评分方法：value=min-max; zscore=按z后再min-max到[0,1]; percentile=以各经济体分位映射[0,1]
+        method = (view or "value").lower()
+        indicator_scores: Dict[str, Dict[str, float]] = {eco: {} for eco in economies}
+        for ind, direction in indicators_directions:
+            vals: List[float] = [latest_values[eco].get(ind) for eco in economies if ind in latest_values[eco]]  # type: ignore[list-item]
+            if not vals:
+                continue
+            if method == "zscore":
+                mean_value = sum(vals) / len(vals)
+                variance = sum((v - mean_value) ** 2 for v in vals) / len(vals)
+                std_dev = variance ** 0.5
+                zs = [0.0 if std_dev == 0 else (v - mean_value) / std_dev for v in vals]
+                z_min, z_max = min(zs), max(zs)
+                z_span = z_max - z_min
+                def _map(v: float, _mean=mean_value, _std=std_dev, _zmin=z_min, _zspan=z_span) -> float:
+                    if _std == 0 or _zspan == 0:
+                        return 0.5
+                    z = (v - _mean) / _std
+                    return (z - _zmin) / _zspan
+            elif method == "percentile":
+                sorted_values = sorted(vals)
+                def _map(v: float, _sorted=sorted_values) -> float:
+                    try:
+                        idx = _sorted.index(v)
+                    except ValueError:
+                        idx = 0
+                    n = len(_sorted)
+                    return (idx / (n - 1)) if n > 1 else 0.5
+            else:
+                v_min, v_max = min(vals), max(vals)
+                v_span = v_max - v_min
+                def _map(v: float, _vmin=v_min, _vspan=v_span) -> float:
+                    if _vspan == 0:
+                        return 0.5
+                    return (v - _vmin) / _vspan
+
+            for eco in economies:
+                v = latest_values[eco].get(ind)
+                if v is None:
+                    continue
+                norm = _map(v)
+                aligned = norm if direction >= 0 else (1.0 - norm)
+                indicator_scores[eco][ind] = max(0.0, min(1.0, aligned))
+
+        matrix: Dict[str, Dict[str, float]] = {}
+        ranking: List[Dict[str, Any]] = []
+        for eco in economies:
+            comp_list = list(indicator_scores[eco].values())
+            comp = (sum(comp_list) / len(comp_list) * 100.0) if comp_list else 0.0
+            matrix[eco] = {"composite": round(comp, 1)}
+            ranking.append({"economy": eco, "score": round(comp, 1)})
+        ranking.sort(key=lambda x: x["score"], reverse=True)
+        return {
+            "as_of": date or "",
+            "view": view,
+            "window": window or "3y",
+            "economies": economies,
+            "commodities": commodities,
+            "matrix": matrix,
+            "ranking": ranking,
+        }
+
+    def get_country(self, economy: str, window: str = "3y") -> Dict[str, Any]:
+        """返回单个经济体关键指标时间序列与综合分（MVP 实装：回读已种子数据）。"""
+        eco = economy.upper()
+        series = self.repo.fetch_macro_series_by_economy(eco)
+        composite: List[Dict[str, Any]] = []
+        # MVP: 若存在任一指标序列，则给出单点 100 分，否则 0 分
+        composite.append({"date": "latest", "value": 100.0 if series else 0.0})
+        return {
+            "economy": eco,
+            "window": window,
+            "series": series,
+            "composite_score": composite,
+            "components": {},
+        }
+
+    def get_score(self, entity_type: str, entity_id: str, view: str = "trend") -> Dict[str, Any]:
+        """返回指定实体（macro/commodity/index/bond/etf）的评分（MVP：固定占位分）。"""
+        base = 60.0 if entity_type in ("commodity", "macro") else 50.0
+        return {
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "view": view,
+            "score": base,
+            "components": {},
+        }
+
+    # ----------------------
+    # 内部：最小样本数据
+    # ----------------------
+    def _seed_minimal_sample(self) -> None:
+        """向数据库写入最小样本数据，支撑页面/接口。
+        仅在库内无任何数据时执行，幂等不重复插入。
+        """
+        sample = [
+            {"economy": "US", "indicator": "cpi_yoy", "date": "2024-12-01", "value": 3.4, "provider": "sample", "revised_at": None},
+            {"economy": "US", "indicator": "unemployment", "date": "2024-12-01", "value": 3.9, "provider": "sample", "revised_at": None},
+            {"economy": "DE", "indicator": "cpi_yoy", "date": "2024-12-01", "value": 3.2, "provider": "sample", "revised_at": None},
+            {"economy": "JP", "indicator": "cpi_yoy", "date": "2024-12-01", "value": 2.7, "provider": "sample", "revised_at": None},
+        ]
+        self.repo.bulk_upsert_macro_series(sample)
+        # commodity/fx 少量占位
+        self.repo.bulk_upsert_commodity_series([
+            {"commodity": "brent", "date": "2024-12-01", "value": 78.2, "currency": "USD", "provider": "sample"},
+            {"commodity": "gold", "date": "2024-12-01", "value": 2100.0, "currency": "USD", "provider": "sample"},
+        ])
+        self.repo.bulk_upsert_fx_series([
+            {"pair": "EURUSD", "date": "2024-12-01", "price": 1.08},
+            {"pair": "USDJPY", "date": "2024-12-01", "price": 150.0},
+        ])
+
+    # 对外：刷新（MVP：当前仅触发种子/占位，后续接入 Provider 拉取）
+    def refresh_all(self) -> Dict[str, Any]:
+        # 使用 Provider 获取最新市场数据；失败时由 Provider 内部样本兜底
+        try:
+            com_rows = fetch_commodities_latest()
+            if com_rows:
+                self.repo.bulk_upsert_commodity_series(com_rows)
+        except (RuntimeError, ValueError):
+            pass
+        try:
+            fx_rows = fetch_fx_latest()
+            if fx_rows:
+                self.repo.bulk_upsert_fx_series(fx_rows)
+        except (RuntimeError, ValueError):
+            pass
+        # WorldBank 宏观指标最新数据（网络可用时）
+        try:
+            from .macro_config import ECONOMIES as _ECOS
+            indicators = [name for name in INDICATORS.keys() if name in ("cpi_yoy", "unemployment", "gdp_yoy")]
+            wb_rows = wb_fetch_macro_latest(_ECOS, indicators)
+            if wb_rows:
+                self.repo.bulk_upsert_macro_series(wb_rows)
+        except (RuntimeError, ValueError):
+            pass
+        # 若库里仍无宏观数据，补一次宏观样本以确保可用
+        if not self.repo.has_any_data():
+            self._seed_minimal_sample()
+        return {"refreshed": True, "message": "Refresh completed (provider with sample fallback)."}
+
+
