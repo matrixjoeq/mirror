@@ -13,7 +13,9 @@ def require_confirmation_code(f):
     """要求确认码的装饰器"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        confirmation_code = request.form.get('confirmation_code') or request.json.get('confirmation_code')
+        # 使用 silent 模式避免在非 JSON 请求上抛出 415
+        data = request.get_json(silent=True) or {}
+        confirmation_code = request.form.get('confirmation_code') or data.get('confirmation_code')
         
         if not confirmation_code:
             return jsonify({
