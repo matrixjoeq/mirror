@@ -1,11 +1,36 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="container">
-  <h2>宏观 - 国家详情（MVP）</h2>
+  <h2>宏观 - 国家详情</h2>
   <p>经济体：{{ data.economy }} | 窗口：{{ data.window }}</p>
-  <div class="alert alert-info">时间序列与评分将在后续迭代接入，当前为占位展示。</div>
-  <pre>{{ data | tojson(indent=2) }}</pre>
-  <p><a href="/api/macro/country?economy={{ data.economy }}">API /api/macro/country</a></p>
+  <div class="row g-3">
+    <div class="col-12 col-lg-8">
+      <canvas id="seriesChart"></canvas>
+    </div>
+    <div class="col-12 col-lg-4">
+      <h6>综合分（占位）</h6>
+      <pre class="small">{{ data.composite_score | tojson(indent=2) }}</pre>
+    </div>
+  </div>
+  <div class="mt-3">
+    <a href="/api/macro/country?economy={{ data.economy }}">API /api/macro/country</a>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const ctx = document.getElementById('seriesChart');
+if (ctx && window.Chart) {
+  const series = {{ data.series | tojson }};
+  const datasets = [];
+  Object.keys(series).forEach((ind, idx) => {
+    const color = ['#2e86de','#e74c3c','#27ae60','#8e44ad','#f39c12'][idx % 5];
+    const points = series[ind].map(p => ({x: p.date, y: p.value}));
+    datasets.push({label: ind, data: points, borderColor: color, backgroundColor: color, tension: 0.2});
+  });
+  new Chart(ctx, { type: 'line', data: { datasets }, options: { parsing: false, scales: { x: { type: 'time', time: { unit: 'month' } } } } });
+}
+</script>
 {% endblock %}
 
 

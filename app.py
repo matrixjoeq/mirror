@@ -42,7 +42,9 @@ def create_app(config_name=None):
     db_path = None
     if config_name == 'testing':
         db_path = os.path.join(tempfile.gettempdir(), f"mirror_test_{os.getpid()}_{int(time.time()*1000)}.db")
+        macro_db_path = os.path.join(tempfile.gettempdir(), f"mirror_macro_test_{os.getpid()}_{int(time.time()*1000)}.db")
         app.config['DB_PATH'] = db_path
+        app.config['MACRO_DB_PATH'] = macro_db_path
     app.db_service = DatabaseService(db_path)
     app.trading_service = TradingService(app.db_service)
     app.strategy_service = StrategyService(app.db_service)

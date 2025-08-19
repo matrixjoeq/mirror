@@ -13,8 +13,10 @@
     - `MacroService` 集成仓储与配置，首次访问自动写入最小样本数据；`get_snapshot` 基于最新值做方向一致的 min-max 聚合输出矩阵与排行；`get_country` 返回序列与占位综合分；新增 `refresh_all()`；
     - `routes/api_macro.py` 新增 `POST /api/macro/refresh`；
     - 新增配置与Provider：`services/macro_config.py`（经济体/指标方向/开关）、`services/data_providers/market_provider.py`（商品/汇率样本+预留联网路径）；
-    - 评分与可视化：`MacroService.get_snapshot` 支持 `zscore`、`percentile` 评分方法；`templates/macro_dashboard.html` 增加视图/窗口切换与进度条热力可视化、排行列表；
+    - 评分与可视化：`MacroService.get_snapshot` 支持 `zscore`、`percentile`、`trend`，加入权重与分项 `by_indicator`；`templates/macro_dashboard.html` 增加视图/窗口切换、热力矩阵与排行；
     - 测试增强：扩展 `tests/unit/test_macro_mvp_scaffolding.py`；新增 `tests/unit/test_macro_repository_and_service.py`、`tests/unit/test_macro_providers_and_repo_readers.py`、`tests/unit/test_macro_scoring_methods.py`、`tests/functional/test_macro_routes_and_api.py` 覆盖刷新与评分路径、API 与页面。
+    - 刷新与缓存：新增 `refresh_meta` 表记录刷新历史；`POST /api/macro/refresh` 写入记录；`GET /api/macro/status` 查询刷新历史；`/api/macro/snapshot` 支持 `window`/`economies`/`indicators` 过滤，并引入进程内5分钟TTL缓存与 `nocache=1` 绕过；刷新后自动失效缓存。
+    - 数据库完全隔离：`MacroRepository` 强制使用 `MACRO_DB_PATH`（默认 `database/macro_observation.db`），与交易库 `DB_PATH` 物理隔离；测试环境下在应用工厂为两者分别分配独立临时文件。
 
 ### 2025-08-16
 - 分析指标增强：

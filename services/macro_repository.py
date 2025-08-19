@@ -13,11 +13,18 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from .database_service import DatabaseService
+from config import Config
 
 
 class MacroRepository:
     def __init__(self, db_service: DatabaseService):
-        self.db = db_service
+        # 使用独立的宏观数据库，保证与交易数据库物理隔离
+        try:
+            from flask import current_app  # 延迟导入避免循环依赖
+            macro_db_path = current_app.config.get('MACRO_DB_PATH', Config.MACRO_DB_PATH)
+        except Exception:
+            macro_db_path = Config.MACRO_DB_PATH
+        self.db = DatabaseService(macro_db_path)
         self._ensure_tables()
 
     def _ensure_tables(self) -> None:
@@ -76,6 +83,18 @@ class MacroRepository:
                     score REAL,
                     components_json TEXT,
                     UNIQUE(view, entity_type, entity_id, date)
+                )
+                """
+            )
+
+            # 刷新元信息
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS refresh_meta (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source TEXT NOT NULL,
+                    refreshed_at TEXT NOT NULL,
+                    rows INTEGER DEFAULT 0
                 )
                 """
             )
@@ -195,6 +214,30 @@ class MacroRepository:
                 latest[str(eco)] = (str(d), float(v) if v is not None else None)
         return {eco: val for eco, (_, val) in latest.items() if val is not None}
 
+    def fetch_latest_two_by_indicator(self, indicator: str) -> dict[str, tuple[Optional[float], Optional[float]]]:
+        """读取某指标各经济体最近两期的值，返回 {economy: (latest, prev)}。若不足两期，prev 为 None。"""
+        result: dict[str, list[float]] = {}
+        with self.db.get_connection() as conn:
+            cur = conn.cursor()
+            # 先按 economy 分组，再按日期倒序取两条
+            cur.execute(
+                "SELECT economy, date, value FROM macro_series WHERE indicator = ? ORDER BY economy, date DESC",
+                (indicator,),
+            )
+            for eco, _d, v in cur.fetchall():
+                if v is None:
+                    continue
+                key = str(eco)
+                lst = result.setdefault(key, [])
+                if len(lst) < 2:
+                    lst.append(float(v))
+        out: dict[str, tuple[Optional[float], Optional[float]]] = {}
+        for eco, vals in result.items():
+            latest = vals[0] if len(vals) >= 1 else None
+            prev = vals[1] if len(vals) >= 2 else None
+            out[eco] = (latest, prev)
+        return out
+
     def has_any_data(self) -> bool:
         """判断是否已有任一宏观数据。"""
         with self.db.get_connection() as conn:
@@ -214,4 +257,20 @@ class MacroRepository:
                 (view, entity_type, entity_id, date, float(score), components_json),
             )
             conn.commit()
+
+    def record_refresh(self, source: str, refreshed_at: str, rows: int) -> None:
+        with self.db.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO refresh_meta (source, refreshed_at, rows) VALUES (?, ?, ?)",
+                (source, refreshed_at, int(rows)),
+            )
+            conn.commit()
+
+    def get_refresh_status(self) -> dict[str, list[dict[str, str]]]:
+        with self.db.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT source, refreshed_at, rows FROM refresh_meta ORDER BY id DESC LIMIT 10")
+            rows = cur.fetchall()
+        return {"history": [{"source": str(s), "refreshed_at": str(ts), "rows": str(r)} for (s, ts, r) in rows]}
 

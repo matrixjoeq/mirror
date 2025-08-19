@@ -170,6 +170,10 @@ export FLASK_ENV=production
 
 # 测试环境
 export FLASK_ENV=testing
+
+# 强烈建议：宏观观察系统使用独立数据库，避免与交易库交叉污染
+export DB_PATH=/abs/path/to/trading_tracker.db
+export MACRO_DB_PATH=/abs/path/to/macro_observation.db
 ```
 
 ### 配置项
@@ -232,6 +236,18 @@ python3 -m unittest tests.functional.*
 | `/api/quick_sell` | POST | 快捷卖出 | TradingService |
 | `/api/strategy_score` | GET | 获取策略评分（附带评分字段） | AnalysisService |
 | `/api/strategy_trend` | GET | 获取策略趋势数据 | AnalysisService |
+
+### 宏观观察 API（MVP）
+
+- 页面：`/macro` 仪表盘、`/macro/country` 国家详情、`/macro/compare` 多国对比
+- 端点：
+  - `GET /api/macro/snapshot?view=value|zscore|percentile|trend&window=6m|1y|3y|5y|10y&date=YYYY-MM-DD[&economies=US,DE][&indicators=cpi_yoy,...][&nocache=1]`
+    - 返回：`{"as_of","view","window","economies","commodities","matrix","ranking"}`
+    - 缓存：默认启用5分钟内存缓存，`nocache=1` 可强制绕过；刷新后自动失效
+  - `GET /api/macro/country?economy=US&window=3y`
+  - `GET /api/macro/score?entity_type=commodity&entity_id=gold&view=trend`
+  - `POST /api/macro/refresh`
+  - `GET /api/macro/status`
 
 ### 服务层设计（口径）
 

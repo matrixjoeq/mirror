@@ -18,6 +18,7 @@
 - 服务与数据层变更
   - `TradingService.update_trade_record`：金额/费用派生纠偏；净/毛利率分母为“已卖出部分买入成本（WAC）”
   - `TradingService.get_all_trades`：补齐 `total_buy_fees`、`total_sell_fees`、`total_fees`、`total_fee_ratio_pct`
+  - 宏观观察（MVP）：加入进程内快照缓存（TTL=5分钟），刷新后自动失效；`/api/macro/snapshot` 支持 `nocache=1` 强制绕过缓存，并支持 `economies`/`indicators` 过滤。
   - 数据库迁移：为 `trades` 表新增 `total_buy_fees`、`total_sell_fees`、`total_fees`、`total_fee_ratio_pct`
 
 ## ✅ 回归状态

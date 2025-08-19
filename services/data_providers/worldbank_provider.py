@@ -32,6 +32,9 @@ WB_INDICATOR_CODE: Dict[str, str] = {
     "cpi_yoy": "FP.CPI.TOTL.ZG",
     "unemployment": "SL.UEM.TOTL.ZS",
     "gdp_yoy": "NY.GDP.MKTP.KD.ZG",
+    # 近似映射：工业增加值同比、零售同比（WB 指标口径与本地含义可能有差异，MVP 先选近似项）
+    "industrial_prod_yoy": "NV.IND.TOTL.KD.ZG",
+    "retail_sales_yoy": "NE.CON.PRVT.KD.ZG",
 }
 
 

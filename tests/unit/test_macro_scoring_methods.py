@@ -33,7 +33,7 @@ def test_scoring_value_zscore_percentile_paths():
             cur.execute("INSERT OR REPLACE INTO macro_series (economy, indicator, date, value, provider, revised_at) VALUES (?,?,?,?,?,?)", ("DE","gdp_yoy","2024-12-31",1.0,"t",None))
             conn.commit()
 
-        for view in ("value", "zscore", "percentile"):
+        for view in ("value", "zscore", "percentile", "trend"):
             snap = svc.get_snapshot(view=view, date="2025-01-01", window="1y")
             assert snap["view"] == view
             assert set(snap["economies"]) >= {"US","DE"}

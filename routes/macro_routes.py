@@ -15,7 +15,7 @@ macro_bp = Blueprint('macro', __name__)
 @macro_bp.route('/macro')
 def dashboard():
     svc = MacroService(current_app.db_service)
-    snap = svc.get_snapshot(view=request.args.get('view', 'value'))
+    snap = svc.get_snapshot(view=request.args.get('view', 'value'), window=request.args.get('window'))
     return render_template('macro_dashboard.html', snapshot=snap)
 
 
@@ -26,5 +26,12 @@ def country():
     svc = MacroService(current_app.db_service)
     data = svc.get_country(economy=economy, window=window)
     return render_template('macro_country.html', data=data)
+
+
+@macro_bp.route('/macro/compare')
+def compare():
+    svc = MacroService(current_app.db_service)
+    snap = svc.get_snapshot(view=request.args.get('view', 'value'), window=request.args.get('window'))
+    return render_template('macro_compare.html', snapshot=snap)
 
 

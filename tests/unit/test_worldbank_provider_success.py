@@ -26,7 +26,7 @@ def test_worldbank_success_and_failure_paths():
     # success path: valid JSON array & series
     payload = '[{"page":1},[{"date":"2024","value":3.2},{"date":"2023","value":2.8}]]'
     with mock.patch("services.data_providers.worldbank_provider.urllib.request.urlopen", return_value=DummyResp(payload)):
-        rows = fetch_macro_latest(["US"], ["cpi_yoy"])
+        rows = fetch_macro_latest(["US"], ["cpi_yoy","industrial_prod_yoy","retail_sales_yoy"]) 
         assert isinstance(rows, list) and len(rows) >= 1
         r0 = rows[0]
         assert r0["economy"] == "US" and r0["indicator"] == "cpi_yoy"

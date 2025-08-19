@@ -104,6 +104,9 @@ def test_service_seed_snapshot_country_score():
             assert int(cur.fetchone()[0]) >= 1
             cur.execute("SELECT COUNT(1) FROM fx_series")
             assert int(cur.fetchone()[0]) >= 1
+        # refresh meta recorded
+        status = svc.repo.get_refresh_status()
+        assert "history" in status and isinstance(status["history"], list)
 
         # indicator config should expose directions
         assert "cpi_yoy" in INDICATORS and isinstance(INDICATORS["cpi_yoy"][0], int)

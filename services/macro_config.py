@@ -27,6 +27,19 @@ INDICATORS: Dict[str, Tuple[int, str]] = {
     "unemployment": (-1, "10y"),
     "pmi": (1, "5y"),
     "gdp_yoy": (1, "10y"),
+    "industrial_prod_yoy": (1, "10y"),
+    "retail_sales_yoy": (1, "10y"),
+}
+
+
+# 指标权重（用于加权综合分；未列出指标默认 1.0）
+INDICATOR_WEIGHTS: Dict[str, float] = {
+    "cpi_yoy": 1.0,
+    "unemployment": 1.0,
+    "pmi": 1.0,
+    "gdp_yoy": 1.2,
+    "industrial_prod_yoy": 1.0,
+    "retail_sales_yoy": 0.8,
 }
 
 
