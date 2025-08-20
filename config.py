@@ -21,6 +21,8 @@ class Config:
     DB_PATH = os.environ.get('DB_PATH') or str(BASE_DIR / 'database' / 'trading_tracker.db')
     # 宏观观察系统独立数据库（与交易跟踪系统完全隔离）
     MACRO_DB_PATH = os.environ.get('MACRO_DB_PATH') or str(BASE_DIR / 'database' / 'macro_observation.db')
+    # 中观观察系统独立数据库
+    MESO_DB_PATH = os.environ.get('MESO_DB_PATH') or str(BASE_DIR / 'database' / 'meso_observation.db')
     
     # Flask配置
     JSON_AS_ASCII = False
@@ -57,6 +59,7 @@ class TestingConfig(Config):
     # 默认使用内存数据库（在 app 工厂中会进一步为每个实例分配临时文件，避免并发连接问题）
     DB_PATH = ':memory:'
     MACRO_DB_PATH = ':memory:'
+    MESO_DB_PATH = ':memory:'
 
 # 配置字典
 config = {

@@ -7,7 +7,8 @@
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-bar-chart-steps"></i> 标的策略比较（列表）
-                        <a href="{{ url_for('analysis.strategy_scores') }}" class="btn btn-outline-secondary btn-sm float-end">
+                        <a href="{{ url_for("analysis.strategy_scores") }}"
+                           class="btn btn-outline-secondary btn-sm float-end">
                             <i class="bi bi-arrow-left"></i> 返回策略评分
                         </a>
                     </h5>
@@ -18,17 +19,29 @@
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <div class="d-flex align-items-center gap-2">
                                 <label class="form-label mb-0">按代码过滤:</label>
-                                <input type="text" class="form-control form-control-sm" id="symbolsInput" placeholder="如: 600000, 000001" style="width: 260px;" value="{{ symbols_query or '' }}">
+                                <input type="text"
+                                       class="form-control form-control-sm"
+                                       id="symbolsInput"
+                                       placeholder="如: 600000, 000001"
+                                       style="width: 260px"
+                                       value="{{ symbols_query or '' }}">
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 <label class="form-label mb-0">按名称过滤:</label>
-                                <input type="text" class="form-control form-control-sm" id="namesInput" placeholder="如: 贵州茅台, 平安银行" style="width: 260px;" value="{{ names_query or '' }}">
+                                <input type="text"
+                                       class="form-control form-control-sm"
+                                       id="namesInput"
+                                       placeholder="如: 贵州茅台, 平安银行"
+                                       style="width: 260px"
+                                       value="{{ names_query or '' }}">
                             </div>
                             <button class="btn btn-sm btn-primary" id="applyFilterBtn">应用</button>
                             <button class="btn btn-sm btn-outline-secondary" id="clearFilterBtn">清除</button>
                             <div class="d-flex align-items-center gap-2">
                                 <label class="form-label mb-0">每页:</label>
-                                <select class="form-select form-select-sm" id="pageSizeSelect" style="width:auto;">
+                                <select class="form-select form-select-sm"
+                                        id="pageSizeSelect"
+                                        style="width:auto">
                                     {% for size in [25,50,100] %}
                                         <option value="{{ size }}" {% if page_size == size %}selected{% endif %}>{{ size }}</option>
                                     {% endfor %}
@@ -40,7 +53,6 @@
             </div>
         </div>
     </div>
-
     <div class="card">
         <div class="table-responsive">
             <table class="table table-striped table-hover mb-0 align-middle">
@@ -49,12 +61,17 @@
                         {% macro sort_link(label, key) -%}
                             {% set params = [] %}
                             {% set _ = params.append('page_size=' ~ page_size) %}
-                            {% if symbols_query %}{% set _ = params.append('symbols=' ~ symbols_query | urlencode) %}{% endif %}
-                            {% if names_query %}{% set _ = params.append('names=' ~ names_query | urlencode) %}{% endif %}
+                            {% if symbols_query %}
+                                {% set _ = params.append('symbols=' ~ symbols_query | urlencode) %}
+                            {% endif %}
+                            {% if names_query %}
+                                {% set _ = params.append('names=' ~ names_query | urlencode) %}
+                            {% endif %}
                             {% set _ = params.append('sort=' ~ key) %}
                             {% set next_dir = 'asc' if sort_key != key or sort_dir == 'desc' else 'desc' %}
                             {% set _ = params.append('dir=' ~ next_dir) %}
-                            <a class="text-decoration-none text-white" href="{{ url_for('analysis.symbol_comparison') }}?{{ '&'.join(params) }}">
+                            <a class="text-decoration-none text-white"
+                               href="{{ url_for("analysis.symbol_comparison") }}?{{ '&'.join(params) }}">
                                 {{ label }}
                                 {% if sort_key == key %}
                                     {% if sort_dir == 'asc' %}
@@ -67,13 +84,11 @@
                                 {% endif %}
                             </a>
                         {%- endmacro %}
-                        <th style="width:160px;">{{ sort_link('标的代码','symbol_code') }}</th>
-                        <th>{{ sort_link('标的名称','symbol_name') }}</th>
-                        <th style="width:120px;" class="text-end">{{ sort_link('交易数','trade_count') }}</th>
+                        <th style="width:160px;">{{ sort_link('标的代码', 'symbol_code') }}</th>
+                        <th>{{ sort_link('标的名称', 'symbol_name') }}</th>
+                        <th style="width:120px;" class="text-end">{{ sort_link('交易数', 'trade_count') }}</th>
                         {% if strategies %}
-                            {% for st in strategies %}
-                                <th class="text-center">{{ st.name }}</th>
-                            {% endfor %}
+                            {% for st in strategies %}<th class="text-center">{{ st.name }}</th>{% endfor %}
                         {% endif %}
                         <th style="width:160px;" class="text-center">操作</th>
                     </tr>
@@ -81,48 +96,52 @@
                 <tbody>
                     {% if symbols %}
                         {% for s in symbols %}
-                        <tr>
-                            <td><span class="badge bg-secondary">{{ s.symbol_code }}</span></td>
-                            <td>{{ s.symbol_name }}</td>
-                            <td class="text-end">{{ s.trade_count }}</td>
-                            {% if strategies %}
-                                {% set code = s.symbol_code|string %}
-                                {% for st in strategies %}
-                                    {% set score = (symbol_strategy_scores.get(code, {}) or {}).get(st.id, None) %}
-                                    <td class="text-center">
-                                        {% if score %}
-                                            <span class="badge bg-primary">{{ '%.1f'|format(score.total) }}</span>
-                                            <small class="text-muted ms-1">{{ score.rating }}</small>
-                                        {% else %}
-                                            <span class="text-muted">-</span>
+                            <tr>
+                                <td>
+                                    <span class="badge bg-secondary">{{ s.symbol_code }}</span>
+                                </td>
+                                <td>{{ s.symbol_name }}</td>
+                                <td class="text-end">{{ s.trade_count }}</td>
+                                {% if strategies %}
+                                    {% set code = s.symbol_code|string %}
+                                    {% for st in strategies %}
+                                        {% set score = (symbol_strategy_scores.get(code, {}) or {}).get(st.id, None) %}
+                                        <td class="text-center">
+                                            {% if score %}
+                                                <span class="badge bg-primary">{{ '%.1f'|format(score.total) }}</span>
+                                                <small class="text-muted ms-1">{{ score.rating }}</small>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    {% endfor %}
+                                {% endif %}
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a href="{{ url_for('analysis.symbol_detail', symbol_code=s.symbol_code) }}"
+                                           class="btn btn-outline-primary">
+                                            <i class="bi bi-eye"></i> 标的详情
+                                        </a>
+                                        {% if strategies %}
+                                            <div class="btn-group" role="group">
+                                                <button type="button"
+                                                        class="btn btn-outline-secondary dropdown-toggle"
+                                                        data-bs-toggle="dropdown">策略详情</button>
+                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                    {% for st in strategies %}
+                                                        <li>
+                                                            <a class="dropdown-item"
+                                                               href="{{ url_for('analysis.strategy_detail', strategy_id=st.id) }}">
+                                                                {{ st.name }}
+                                                            </a>
+                                                        </li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </div>
                                         {% endif %}
-                                    </td>
-                                {% endfor %}
-                            {% endif %}
-                            <td class="text-center">
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <a href="{{ url_for('analysis.symbol_detail', symbol_code=s.symbol_code) }}" class="btn btn-outline-primary">
-                                        <i class="bi bi-eye"></i> 标的详情
-                                    </a>
-                                    {% if strategies %}
-                                        <div class="btn-group" role="group">
-                                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                                                策略详情
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                {% for st in strategies %}
-                                                    <li>
-                                                        <a class="dropdown-item" href="{{ url_for('analysis.strategy_detail', strategy_id=st.id) }}">
-                                                            {{ st.name }}
-                                                        </a>
-                                                    </li>
-                                                {% endfor %}
-                                            </ul>
-                                        </div>
-                                    {% endif %}
-                                </div>
-                            </td>
-                        </tr>
+                                    </div>
+                                </td>
+                            </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
@@ -137,30 +156,40 @@
                 <ul class="pagination mb-0">
                     {% set qs_base = [] %}
                     {% set _ = qs_base.append('page_size=' ~ page_size) %}
-                    {% if symbols_query %}{% set _ = qs_base.append('symbols=' ~ symbols_query | urlencode) %}{% endif %}
-                    {% if names_query %}{% set _ = qs_base.append('names=' ~ names_query | urlencode) %}{% endif %}
-                    {% if sort_key %}{% set _ = qs_base.append('sort=' ~ sort_key) %}{% endif %}
-                    {% if sort_dir %}{% set _ = qs_base.append('dir=' ~ sort_dir) %}{% endif %}
+                    {% if symbols_query %}
+                        {% set _ = qs_base.append('symbols=' ~ symbols_query | urlencode) %}
+                    {% endif %}
+                    {% if names_query %}
+                        {% set _ = qs_base.append('names=' ~ names_query | urlencode) %}
+                    {% endif %}
+                    {% if sort_key %}
+                        {% set _ = qs_base.append('sort=' ~ sort_key) %}
+                    {% endif %}
+                    {% if sort_dir %}
+                        {% set _ = qs_base.append('dir=' ~ sort_dir) %}
+                    {% endif %}
                     {% set base_query = '&'.join(qs_base) %}
-
                     {% set prev_page = 1 if page <= 1 else page - 1 %}
                     <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('analysis.symbol_comparison') }}?{{ base_query }}&page={{ prev_page }}" aria-label="上一页">
+                        <a class="page-link"
+                           href="{{ url_for("analysis.symbol_comparison") }}?{{ base_query }}&page={{ prev_page }}"
+                           aria-label="上一页">
                             <span aria-hidden="true">&laquo;</span>
                         </a>
                     </li>
-
                     {% set start = page - 2 if page - 2 > 1 else 1 %}
                     {% set end = page + 2 if page + 2 < total_pages else total_pages %}
                     {% for p in range(start, end + 1) %}
                         <li class="page-item {{ 'active' if p == page else '' }}">
-                            <a class="page-link" href="{{ url_for('analysis.symbol_comparison') }}?{{ base_query }}&page={{ p }}">{{ p }}</a>
+                            <a class="page-link"
+                               href="{{ url_for("analysis.symbol_comparison") }}?{{ base_query }}&page={{ p }}">{{ p }}</a>
                         </li>
                     {% endfor %}
-
                     {% set next_page = total_pages if page >= total_pages else page + 1 %}
                     <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('analysis.symbol_comparison') }}?{{ base_query }}&page={{ next_page }}" aria-label="下一页">
+                        <a class="page-link"
+                           href="{{ url_for("analysis.symbol_comparison") }}?{{ base_query }}&page={{ next_page }}"
+                           aria-label="下一页">
                             <span aria-hidden="true">&raquo;</span>
                         </a>
                     </li>
@@ -170,7 +199,7 @@
     </div>
 {% endblock %}
 {% block scripts %}
-<script>
+    <script>
 document.addEventListener('DOMContentLoaded', function() {
     const pageSizeSelect = document.getElementById('pageSizeSelect');
     if (pageSizeSelect) {
@@ -207,7 +236,5 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-</script>
+    </script>
 {% endblock %}
-
-

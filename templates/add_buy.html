@@ -23,12 +23,9 @@
                                 </label>
                                 <select class="form-select" id="strategy" name="strategy" required>
                                     {% for strategy in strategies_data %}
-                                        <option value="{{ strategy.id }}"
-                                                {{ 'selected' if default_strategy and default_strategy == strategy.id else '' }}
-                                                data-description="{{ strategy.description or '' }}"
-                                                data-tags="{{ strategy.tags|join(', ') }}">
+                                        <option value="{{ strategy.id }}" {{ 'selected' if default_strategy and default_strategy == strategy.id else '' }} data-description="{{ strategy.description or '' }}" data-tags="{{ strategy.tags|join(", ") }}">
                                             {{ strategy.name }}
-                                            {% if strategy.tags %}({{ strategy.tags|join(', ') }}){% endif %}
+                                            {% if strategy.tags %}({{ strategy.tags|join(", ") }}){% endif %}
                                         </option>
                                     {% endfor %}
                                 </select>
@@ -193,7 +190,7 @@
                             </ul>
                         </div>
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            <a href="{{ url_for('trading.trades') }}"
+                            <a href="{{ url_for("trading.trades") }}"
                                class="btn btn-secondary me-md-2">
                                 <i class="bi bi-arrow-left"></i> 返回
                             </a>

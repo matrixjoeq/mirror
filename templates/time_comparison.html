@@ -7,7 +7,7 @@
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-calendar-range"></i> 时间段策略比较
-                        <a href="{{ url_for('analysis.strategy_scores') }}"
+                        <a href="{{ url_for("analysis.strategy_scores") }}"
                            class="btn btn-outline-secondary btn-sm float-end">
                             <i class="bi bi-arrow-left"></i> 返回策略评分
                         </a>
@@ -116,7 +116,7 @@
                         <i class="bi bi-calendar-x" style="font-size: 3rem; color: #dee2e6;"></i>
                         <h5 class="mt-3 text-muted">暂无时间段数据</h5>
                         <p class="text-muted">还没有已平仓的交易记录，无法进行时间段分析。</p>
-                        <a href="{{ url_for('trading.add_buy') }}" class="btn btn-primary">
+                        <a href="{{ url_for("trading.add_buy") }}" class="btn btn-primary">
                             <i class="bi bi-plus-circle"></i> 添加交易记录
                         </a>
                     </div>

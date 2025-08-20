@@ -1,113 +1,121 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="container mt-4">
-  <h3>数据库一致性诊断</h3>
-
-  <form class="row g-2 mb-3" method="get" action="">
-    <div class="col-auto">
-      <input type="number" class="form-control" name="trade_id" placeholder="按交易ID筛选" value="{{ trade_id or '' }}">
+    <div class="container mt-4">
+        <h3>数据库一致性诊断</h3>
+        <form class="row g-2 mb-3" method="get" action="">
+            <div class="col-auto">
+                <input type="number"
+                       class="form-control"
+                       name="trade_id"
+                       placeholder="按交易ID筛选"
+                       value="{{ trade_id or '' }}">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary" type="submit">诊断</button>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-danger" type="button" id="btnAutoFix">自动修复(全部/所选)</button>
+            </div>
+        </form>
+        <div class="mb-3">
+            <span class="badge bg-secondary">主表问题: {{ result.summary.trade_issue_count }}</span>
+            <span class="badge bg-secondary ms-2">明细问题: {{ result.summary.detail_issue_count }}</span>
+        </div>
+        <h5>主表不一致</h5>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>交易ID</th>
+                        <th>字段</th>
+                        <th>当前值</th>
+                        <th>期望值</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in result.trade_issues %}
+                        <tr>
+                            <td>{{ r.trade_id }}</td>
+                            <td>{{ r.field }}</td>
+                            <td>{{ r.current }}</td>
+                            <td>{{ r.expected }}</td>
+                        </tr>
+                    {% endfor %}
+                    {% if not result.trade_issues %}
+                        <tr>
+                            <td colspan="4" class="text-muted text-center">无</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <h5 class="mt-4">明细 amount 定义校验</h5>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>明细ID</th>
+                        <th>交易ID</th>
+                        <th>问题</th>
+                        <th>当前值</th>
+                        <th>期望值</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in result.detail_issues %}
+                        <tr>
+                            <td>{{ d.detail_id }}</td>
+                            <td>{{ d.trade_id }}</td>
+                            <td>{{ d.issue }}</td>
+                            <td>{{ d.current }}</td>
+                            <td>{{ d.expected }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary"
+                                        data-action="apply"
+                                        data-table="trade_details"
+                                        data-id="{{ d.detail_id }}"
+                                        data-field="amount"
+                                        data-value="{{ d.expected }}">应用期望值</button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    {% if not result.detail_issues %}
+                        <tr>
+                            <td colspan="6" class="text-muted text-center">无</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <h5 class="mt-4">原始数据快速编辑</h5>
+        <div class="alert alert-info">谨慎操作：修改原始数据会立即生效，且会记录修改历史。</div>
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-auto">
+                <label class="form-label">表</label>
+                <select class="form-select" id="editTable">
+                    <option value="trades">trades</option>
+                    <option value="trade_details">trade_details</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label">ID</label>
+                <input type="number" class="form-control" id="editId" placeholder="主键ID">
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">更新内容(JSON)</label>
+                <input type="text"
+                       class="form-control"
+                       id="editJson"
+                       placeholder='{"price":1.23,"quantity":100}'>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-success" id="btnEditSubmit">提交更新</button>
+            </div>
+        </div>
+        <pre id="opResult" class="small"></pre>
     </div>
-    <div class="col-auto">
-      <button class="btn btn-primary" type="submit">诊断</button>
-    </div>
-    <div class="col-auto">
-      <button class="btn btn-danger" type="button" id="btnAutoFix">自动修复(全部/所选)</button>
-    </div>
-  </form>
-
-  <div class="mb-3">
-    <span class="badge bg-secondary">主表问题: {{ result.summary.trade_issue_count }}</span>
-    <span class="badge bg-secondary ms-2">明细问题: {{ result.summary.detail_issue_count }}</span>
-  </div>
-
-  <h5>主表不一致</h5>
-  <div class="table-responsive">
-    <table class="table table-sm table-striped align-middle">
-      <thead>
-        <tr>
-          <th>交易ID</th>
-          <th>字段</th>
-          <th>当前值</th>
-          <th>期望值</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in result.trade_issues %}
-        <tr>
-          <td>{{ r.trade_id }}</td>
-          <td>{{ r.field }}</td>
-          <td>{{ r.current }}</td>
-          <td>{{ r.expected }}</td>
-        </tr>
-        {% endfor %}
-        {% if not result.trade_issues %}
-        <tr><td colspan="4" class="text-muted text-center">无</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-
-  <h5 class="mt-4">明细 amount 定义校验</h5>
-  <div class="table-responsive">
-    <table class="table table-sm table-striped align-middle">
-      <thead>
-        <tr>
-          <th>明细ID</th>
-          <th>交易ID</th>
-          <th>问题</th>
-          <th>当前值</th>
-          <th>期望值</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for d in result.detail_issues %}
-        <tr>
-          <td>{{ d.detail_id }}</td>
-          <td>{{ d.trade_id }}</td>
-          <td>{{ d.issue }}</td>
-          <td>{{ d.current }}</td>
-          <td>{{ d.expected }}</td>
-          <td>
-            <button class="btn btn-sm btn-outline-primary" data-action="apply" data-table="trade_details" data-id="{{ d.detail_id }}" data-field="amount" data-value="{{ d.expected }}">应用期望值</button>
-          </td>
-        </tr>
-        {% endfor %}
-        {% if not result.detail_issues %}
-        <tr><td colspan="6" class="text-muted text-center">无</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-
-  <h5 class="mt-4">原始数据快速编辑</h5>
-  <div class="alert alert-info">谨慎操作：修改原始数据会立即生效，且会记录修改历史。</div>
-  <div class="row g-2 align-items-end mb-3">
-    <div class="col-auto">
-      <label class="form-label">表</label>
-      <select class="form-select" id="editTable">
-        <option value="trades">trades</option>
-        <option value="trade_details">trade_details</option>
-      </select>
-    </div>
-    <div class="col-auto">
-      <label class="form-label">ID</label>
-      <input type="number" class="form-control" id="editId" placeholder="主键ID">
-    </div>
-    <div class="col-12 col-md-6">
-      <label class="form-label">更新内容(JSON)</label>
-      <input type="text" class="form-control" id="editJson" placeholder='{"price":1.23,"quantity":100}'>
-    </div>
-    <div class="col-auto">
-      <button class="btn btn-success" id="btnEditSubmit">提交更新</button>
-    </div>
-  </div>
-
-  <pre id="opResult" class="small"></pre>
-
-</div>
-
-<script>
+    <script>
 document.getElementById('btnAutoFix').addEventListener('click', async () => {
   const tradeId = new URLSearchParams(window.location.search).get('trade_id');
   const body = tradeId ? { trade_ids: [parseInt(tradeId)] } : {};
@@ -144,7 +152,5 @@ document.getElementById('btnEditSubmit').addEventListener('click', async () => {
   const j = await r.json();
   document.getElementById('opResult').textContent = JSON.stringify(j, null, 2);
 });
-</script>
+    </script>
 {% endblock %}
-
-

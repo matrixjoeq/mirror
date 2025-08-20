@@ -5,18 +5,15 @@ set -euo pipefail
 
 echo "🚀 多策略系统分析 启动中..."
 
-# 选择 Python 解释器（优先 python3）
-if command -v python3 >/dev/null 2>&1; then
-  PY=python3
-else
-  PY=python
-fi
-
-# 检查并激活已有 venv（不自动创建）
+# 选择 Python 解释器（优先 venv 内 python3）并激活 venv（不自动创建）
+PY=python3
 if [ -f "venv/bin/activate" ]; then
   echo "🔄 检测到 venv，正在激活..."
   # shellcheck disable=SC1091
   source venv/bin/activate
+  if [ -x "venv/bin/python3" ]; then
+    PY="venv/bin/python3"
+  fi
 else
   echo "⚠️  未检测到 venv，将直接使用系统 Python 运行（不自动创建）。"
 fi

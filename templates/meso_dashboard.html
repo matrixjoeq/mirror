@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block content %}
+    <div class="container">
+        <h2>中观观察（全球股指趋势）</h2>
+        <div class="mb-3">
+            <a href="/api/meso/indexes">API /api/meso/indexes</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>代码</th>
+                        <th>名称</th>
+                        <th>区域</th>
+                        <th>货币</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for idx in indexes %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-secondary">{{ idx.symbol }}</span>
+                            </td>
+                            <td>{{ idx.name }}</td>
+                            <td>{{ idx.region }}</td>
+                            <td>{{ idx.currency }}</td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-primary"
+                                   href="/api/meso/trend_series?symbol={{ idx.symbol }}">趋势序列</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

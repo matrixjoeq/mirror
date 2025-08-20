@@ -14,7 +14,7 @@ python run_tests.py [test_type]
 
 test_type 选项：
 - unit: 运行单元测试
-- functional: 运行功能测试  
+- functional: 运行功能测试
 - integration: 运行集成测试
 - all: 运行所有测试（默认）
 """
@@ -50,12 +50,12 @@ def print_summary(suite_name, result):
     print(f"  成功: {result.testsRun - len(result.failures) - len(result.errors)}")
     print(f"  失败: {len(result.failures)}")
     print(f"  错误: {len(result.errors)}")
-    
+
     if result.failures:
         print(f"\n失败的测试:")
         for test, traceback in result.failures:
             print(f"  - {test}: {traceback.split('AssertionError:')[-1].strip()}")
-    
+
     if result.errors:
         print(f"\n错误的测试:")
         for test, traceback in result.errors:
@@ -66,9 +66,16 @@ def _run_with_coverage(module_patterns, cov_report_dir, min_coverage, source_mod
     """使用coverage运行指定模块模式的测试，并校验最低覆盖率。"""
     env = os.environ.copy()
     env['FLASK_ENV'] = 'testing'
+    # 清理历史覆盖数据，避免跨套件串扰
+    subprocess.call([sys.executable, '-m', 'coverage', 'erase'])
+    source_args = []
+    for mod in (source_modules or '').split(','):
+        mod = mod.strip()
+        if mod:
+            source_args.extend(['--source', mod])
     cmd = [
-        sys.executable, '-m', 'coverage', 'run', '--rcfile', os.path.join(project_root, '.coveragerc'), '--branch', '--source', source_modules,
-        '-m', 'unittest', '-v'
+        sys.executable, '-m', 'coverage', 'run', '--rcfile', os.path.join(project_root, '.coveragerc'), '--branch',
+        *source_args, '-m', 'unittest', '-v'
     ] + module_patterns
     subprocess.check_call(cmd, env=env)
 
@@ -90,9 +97,16 @@ def _run_discover_with_coverage(start_dir: str, cov_report_dir: str, min_coverag
     """基于 unittest discover 运行测试，便于完整收集包内所有测试。"""
     env = os.environ.copy()
     env['FLASK_ENV'] = 'testing'
+    # 清理历史覆盖数据，避免跨套件串扰
+    subprocess.call([sys.executable, '-m', 'coverage', 'erase'])
+    source_args = []
+    for mod in (source_modules or '').split(','):
+        mod = mod.strip()
+        if mod:
+            source_args.extend(['--source', mod])
     cmd = [
-        sys.executable, '-m', 'coverage', 'run', '--rcfile', os.path.join(project_root, '.coveragerc'), '--branch', '--source', source_modules,
-        '-m', 'unittest', 'discover', '-s', start_dir, '-p', pattern
+        sys.executable, '-m', 'coverage', 'run', '--rcfile', os.path.join(project_root, '.coveragerc'), '--branch',
+        *source_args, '-m', 'unittest', 'discover', '-s', start_dir, '-p', pattern
     ]
     subprocess.check_call(cmd, env=env)
 
@@ -176,8 +190,8 @@ def _write_dashboard(report_root: str, results: dict):
 def run_unit_tests():
     """运行单元测试"""
     print_banner("单元测试 - 核心功能测试")
-    
-    # 使用 coverage + discover 运行整个单元测试包，来源限定为服务/模型/工具层
+
+    # 使用 coverage + discover 运行整个单元测试包，来源限定为服务/模型/工具层（排除 routes 以避免导入期稀释）
     _run_discover_with_coverage('tests/unit', os.path.join(project_root, 'reports', 'unit'), 90.0, 'services,models,utils')
     return True
 
@@ -199,14 +213,14 @@ def run_functional_tests():
 def run_integration_tests():
     """运行集成测试"""
     print_banner("集成测试 - 系统集成测试")
-    
+
     # 导入集成测试模块
     from tests.integration.test_system_integration import TestSystemIntegration
-    
+
     # 创建测试套件
     suite = unittest.TestSuite()
     suite.addTest(unittest.TestLoader().loadTestsFromTestCase(TestSystemIntegration))
-    
+
     # 运行测试
     _run_with_coverage(
         ['tests.integration.test_system_integration'],
@@ -281,11 +295,11 @@ def run_all_tests():
     """运行所有测试"""
     print_banner("FULL TEST SUITE")
     print(f"测试开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
+
     results = {}
     overall_success = True
     mypy_ok = True
-    
+
     # 静态检查（不阻塞）
     try:
         static_ok = run_static_checks()
@@ -309,7 +323,7 @@ def run_all_tests():
         ("集成测试", run_integration_tests),
         ("性能测试", run_performance_tests),
     ]
-    
+
     for test_name, test_func in test_types:
         try:
             success = test_func()
@@ -319,7 +333,7 @@ def run_all_tests():
         except Exception as e:
             results[test_name] = f"错误: {str(e)}"
             overall_success = False
-    
+
     # 打印总体摘要
     print_banner("SUMMARY")
     print(f"测试结束时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -327,18 +341,18 @@ def run_all_tests():
     for test_name, result in results.items():
         status_icon = "✅" if result == "通过" else ("⚠️" if result == "存在问题" else "❌")
         print(f"  {status_icon} {test_name}: {result}")
-    
+
     print(f"\n整体测试结果: {'全部通过' if overall_success else '存在失败'}")
     if not mypy_ok:
         print("注意: MyPy 类型检查存在问题，请在后续修复。当前不阻塞测试通过。")
-    
+
     if overall_success:
         print("\n所有测试都通过了。")
         print("系统功能正常，质量达标。")
     else:
         print("\n部分测试失败，请检查上述错误信息。")
         print("建议修复失败的测试后重新运行。")
-    
+
     # 生成覆盖率总览仪表盘
     _write_dashboard(os.path.join(project_root, 'reports'), results)
     return overall_success
@@ -356,29 +370,29 @@ def main():
         test_type = sys.argv[1].lower()
     else:
         test_type = 'all'
-    
+
     # 检查参数有效性
     valid_types = ['static', 'unit', 'functional', 'integration', 'performance', 'all', 'help', '-h', '--help']
     if test_type not in valid_types:
         print(f"错误: 无效的测试类型 '{test_type}'")
         print(f"有效选项: {', '.join(valid_types[:-3])}")
         return 1
-    
+
     # 显示帮助
     if test_type in ['help', '-h', '--help']:
         print_help()
         return 0
-    
+
     # 检查是否在虚拟环境中
     if not hasattr(sys, 'real_prefix') and not (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
         # Avoid non-ASCII output for Windows cp1252 console issues
         print("Warning: It is recommended to run tests inside a virtual environment.")
         print("To activate: source venv/bin/activate (Linux/macOS) or .\\venv\\Scripts\\activate (Windows)")
         print()
-    
+
     # 运行相应的测试
     success = True
-    
+
     if test_type == 'static':
         success = run_static_checks()
     elif test_type == 'unit':
@@ -391,7 +405,7 @@ def main():
         success = run_performance_tests()
     elif test_type == 'all':
         success = run_all_tests()
-    
+
     # 返回适当的退出代码
     return 0 if success else 1
 

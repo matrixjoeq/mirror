@@ -8,6 +8,7 @@ from flask import Blueprint, jsonify, request, current_app
 from typing import Any, cast
 
 from services import StrategyService, AnalysisService
+from services.meso_service import MesoService
 from services.trading_service import TradingService
 from utils.decorators import handle_errors
 
@@ -32,7 +33,7 @@ def get_tags():
     app = cast(Any, current_app)
     strategy_service = StrategyService(app.db_service)
     tags = strategy_service.get_all_tags()
-    
+
     return jsonify({
         'success': True,
         'data': tags
@@ -230,17 +231,17 @@ def create_tag():
     """创建标签的API"""
     app = cast(Any, current_app)
     strategy_service = StrategyService(app.db_service)
-    
+
     name = request.form.get('name') or (request.json.get('name') if request.is_json else None)
-    
+
     if not name:
         return jsonify({
             'success': False,
             'message': '标签名称不能为空'
         }), 400
-    
+
     success, message = strategy_service.create_tag(name)
-    
+
     return jsonify({
         'success': success,
         'message': message
@@ -253,7 +254,7 @@ def update_tag(tag_id):
     """更新标签的API"""
     app = cast(Any, current_app)
     strategy_service = StrategyService(app.db_service)
-    
+
     # 兼容前端可能传递的 name 或 new_name
     new_name = (
         request.form.get('name')
@@ -261,15 +262,15 @@ def update_tag(tag_id):
         or (request.json.get('name') if request.is_json else None)
         or (request.json.get('new_name') if request.is_json else None)
     )
-    
+
     if not new_name:
         return jsonify({
             'success': False,
             'message': '新标签名称不能为空'
         }), 400
-    
+
     success, message = strategy_service.update_tag(tag_id, new_name)
-    
+
     return jsonify({'success': success, 'message': message})
 
 
@@ -278,9 +279,9 @@ def update_tag(tag_id):
 def delete_tag(tag_id):
     """删除标签的API"""
     strategy_service = StrategyService(current_app.db_service)
-    
+
     success, message = strategy_service.delete_tag(tag_id)
-    
+
     return jsonify({
         'success': success,
         'message': message
@@ -293,14 +294,14 @@ def get_strategy_score():
     """获取策略评分的API"""
     app = cast(Any, current_app)
     analysis_service = AnalysisService(app.db_service)
-    
+
     # 获取查询参数
     strategy_id = request.args.get('strategy_id', type=int)
     strategy = request.args.get('strategy')
     symbol_code = request.args.get('symbol_code')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
-    
+
     score = analysis_service.calculate_strategy_score(
         strategy_id=strategy_id,
         strategy=strategy,
@@ -310,7 +311,7 @@ def get_strategy_score():
     )
     # 统一附加评分字段
     score = analysis_service.attach_score_fields(score)
-    
+
     return jsonify({
         'success': True,
         'data': score
@@ -323,20 +324,20 @@ def get_strategy_trend():
     """获取策略趋势数据的API"""
     app = cast(Any, current_app)
     analysis_service = AnalysisService(app.db_service)
-    
+
     strategy_id = request.args.get('strategy_id', type=int)
     period_type = request.args.get('period_type', 'month')  # year, quarter, month
-    
+
     if not strategy_id:
         return jsonify({
             'success': False,
             'message': '策略ID不能为空'
         }), 400
-    
+
     try:
         # 获取时间周期列表
         periods = analysis_service.get_time_periods(period_type)
-        
+
         # 计算每个周期的表现（附带统一评分字段，便于前端绘制总分趋势）
         trend_data = []
         for period in periods:
@@ -347,7 +348,7 @@ def get_strategy_trend():
                 end_date=end_date
             )
             score = analysis_service.attach_score_fields(score)
-            
+
             trend_data.append({
                 'period': period,
                 'return_rate': score['stats']['total_return_rate'],
@@ -355,21 +356,69 @@ def get_strategy_trend():
                 'trades_count': score['stats']['total_trades'],
                 'total_score': score['total_score']
             })
-        
+
         # 按时间排序
         trend_data.sort(key=lambda x: x['period'])
-        
+
         return jsonify({
             'success': True,
             'data': trend_data
         })
-        
+
     except Exception as e:
         current_app.logger.error(f"获取策略趋势失败: {str(e)}")
         return jsonify({
             'success': False,
             'message': f'获取策略趋势失败: {str(e)}'
         }), 500
+
+
+# ---- 中观观察：全球股指趋势 API ----
+
+@api_bp.route('/meso/indexes')
+@handle_errors
+def get_meso_indexes():
+    svc = MesoService()
+    return jsonify({'success': True, 'data': svc.list_indexes()})
+
+
+@api_bp.route('/meso/trend_series')
+@handle_errors
+def get_meso_trend_series():
+    symbol = request.args.get('symbol', '^GSPC')
+    window = request.args.get('window', '3y')
+    currency = request.args.get('currency', 'USD')
+    svc = MesoService()
+    return jsonify({'success': True, 'data': svc.get_trend_series(symbol, window, currency)})
+
+
+@api_bp.route('/meso/compare_series')
+@handle_errors
+def get_meso_compare_series():
+    symbols_raw = request.args.get('symbols', '^GSPC,^NDX')
+    symbols = [s.strip() for s in symbols_raw.split(',') if s.strip()]
+    if len(symbols) == 0 or len(symbols) > 10:
+        return jsonify({'success': False, 'message': 'symbols must be 1..10'}), 400
+    window = request.args.get('window', '3y')
+    currency = request.args.get('currency', 'USD')
+    svc = MesoService()
+    return jsonify({'success': True, 'data': svc.get_compare_series(symbols, window, currency)})
+
+
+@api_bp.route('/meso/refresh', methods=['POST'])
+@handle_errors
+def meso_refresh():
+    symbols_raw = request.args.get('symbols') or (request.json.get('symbols') if request.is_json else None)
+    symbols = None
+    if symbols_raw:
+        if isinstance(symbols_raw, str):
+            symbols = [s.strip() for s in symbols_raw.split(',') if s.strip()]
+        elif isinstance(symbols_raw, list):
+            symbols = [str(s).strip() for s in symbols_raw if str(s).strip()]
+    period = request.args.get('period', '3y')
+    svc = MesoService()
+    result = svc.refresh_prices_and_scores(symbols=symbols, period=period)
+    return jsonify({'success': True, 'data': result})
 
 
 @api_bp.errorhandler(404)

@@ -8,7 +8,7 @@
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-diagram-2"></i> {{ symbol_code }} - {{ symbol_name }} 策略比较
-                        <a href="{{ url_for('analysis.symbol_comparison') }}"
+                        <a href="{{ url_for("analysis.symbol_comparison") }}"
                            class="btn btn-outline-secondary btn-sm float-end">
                             <i class="bi bi-arrow-left"></i> 返回标的列表
                         </a>
@@ -100,27 +100,21 @@
                                 <select class="form-select form-select-sm"
                                         id="sortSelect"
                                         onchange="updateSort()">
-                                    <option value="total_score"
-                                            {{ 'selected' if sort_by == 'total_score' else '' }}>总分
+                                    <option value="total_score" {{ 'selected' if sort_by == 'total_score' else '' }}>总分
                                     </option>
                                     <option value="win_rate" {{ 'selected' if sort_by == 'win_rate' else '' }}>胜率
                                     </option>
-                                    <option value="avg_profit_loss_ratio"
-                                            {{ 'selected' if sort_by == 'avg_profit_loss_ratio' else '' }}>盈亏比
+                                    <option value="avg_profit_loss_ratio" {{ 'selected' if sort_by == 'avg_profit_loss_ratio' else '' }}>盈亏比
                                     </option>
-                                    <option value="avg_holding_days"
-                                            {{ 'selected' if sort_by == 'avg_holding_days' else '' }}>持仓天数
+                                    <option value="avg_holding_days" {{ 'selected' if sort_by == 'avg_holding_days' else '' }}>持仓天数
                                     </option>
-                                    <option value="strategy_code"
-                                            {{ 'selected' if sort_by == 'strategy_code' else '' }}>策略名称
+                                    <option value="strategy_code" {{ 'selected' if sort_by == 'strategy_code' else '' }}>策略名称
                                     </option>
                                     <option value="win_rate" {{ 'selected' if sort_by == 'win_rate' else '' }}>胜率
                                     </option>
-                                    <option value="avg_profit_loss_ratio"
-                                            {{ 'selected' if sort_by == 'avg_profit_loss_ratio' else '' }}>盈亏比
+                                    <option value="avg_profit_loss_ratio" {{ 'selected' if sort_by == 'avg_profit_loss_ratio' else '' }}>盈亏比
                                     </option>
-                                    <option value="avg_holding_days"
-                                            {{ 'selected' if sort_by == 'avg_holding_days' else '' }}>持仓天数
+                                    <option value="avg_holding_days" {{ 'selected' if sort_by == 'avg_holding_days' else '' }}>持仓天数
                                     </option>
                                 </select>
                             </div>

@@ -18,6 +18,16 @@
     - 刷新与缓存：新增 `refresh_meta` 表记录刷新历史；`POST /api/macro/refresh` 写入记录；`GET /api/macro/status` 查询刷新历史；`/api/macro/snapshot` 支持 `window`/`economies`/`indicators` 过滤，并引入进程内5分钟TTL缓存与 `nocache=1` 绕过；刷新后自动失效缓存。
     - 数据库完全隔离：`MacroRepository` 强制使用 `MACRO_DB_PATH`（默认 `database/macro_observation.db`），与交易库 `DB_PATH` 物理隔离；测试环境下在应用工厂为两者分别分配独立临时文件。
 
+## feat: 中观观察体系（全球股指趋势）脚手架
+- 配置：新增 `MESO_DB_PATH`（默认 `database/meso_observation.db`）。
+- 仓储：`services/meso_repository.py`（`index_prices`/`trend_scores`/`refresh_meta`）。
+- 服务：`services/meso_service.py` 提供最小 API：
+  - 列表：`list_indexes()`（占位清单，后续从配置/provider 注入）
+  - 序列：`get_trend_series(symbol, window, currency)`（读取已存储分数与价格）
+  - 对比：`get_compare_series(symbols<=10, window, currency)`
+- API：`/api/meso/indexes`、`/api/meso/trend_series`、`/api/meso/compare_series`
+- 页面：`/meso` → `templates/meso_dashboard.html`（指数清单与 API 入口）
+
 ### 2025-08-16
 - 分析指标增强：
   - 在策略评分计算中补充并返回夏普比率与卡玛比率字段，字段名分别为 `sharpe_ratio` 与 `calmar_ratio`；并确保 `annual_volatility`、`annual_return`、`max_drawdown`、`sharpe_ratio`、`calmar_ratio` 在异常时回退为 0.0，不阻塞页面显示。

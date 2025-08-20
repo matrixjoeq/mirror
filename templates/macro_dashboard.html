@@ -1,86 +1,90 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="container">
-  <h2>宏观观察（MVP）</h2>
-  <form class="row g-2 mb-3" method="get" action="/macro">
-    <div class="col-auto">
-      <label class="form-label">视图</label>
-      <select class="form-select" name="view" onchange="this.form.submit()">
-        {% for v in ['value','zscore','percentile'] %}
-          <option value="{{ v }}" {{ 'selected' if snapshot.view==v else '' }}>{{ v }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-auto">
-      <label class="form-label">窗口</label>
-      <select class="form-select" name="window" onchange="this.form.submit()">
-        {% for w in ['6m','1y','3y','5y','10y'] %}
-          <option value="{{ w }}" {{ 'selected' if snapshot.window==w else '' }}>{{ w }}</option>
-        {% endfor %}
-      </select>
-    </div>
-  </form>
-
-  <div class="row g-3">
-    {% for eco in snapshot.economies %}
-      <div class="col-12 col-md-6 col-lg-4">
-        <div class="card">
-          <div class="card-body">
-            <h6 class="card-title">{{ eco }}</h6>
-            {% set score = snapshot.matrix[eco]['composite'] %}
-            <div class="progress" style="height: 10px;">
-              <div class="progress-bar" role="progressbar" style="width: {{ '%.0f'|format(score) }}%; background-color: rgb({{ 255 - (2.55*score)|round(0,'floor') }}, {{ (2.55*score)|round(0,'floor') }}, 80)" aria-valuenow="{{ '%.0f'|format(score) }}" aria-valuemin="0" aria-valuemax="100"></div>
+    <div class="container">
+        <h2>宏观观察（MVP）</h2>
+        <form class="row g-2 mb-3" method="get" action="/macro">
+            <div class="col-auto">
+                <label class="form-label">视图</label>
+                <select class="form-select" name="view" onchange="this.form.submit()">
+                    {% for v in ['value','zscore','percentile'] %}
+                        <option value="{{ v }}" {{ 'selected' if snapshot.view==v else '' }}>{{ v }}
+                        </option>
+                    {% endfor %}
+                </select>
             </div>
-            <div class="mt-2 small text-muted">综合分：{{ '%.1f'|format(score) }}</div>
-          </div>
-        </div>
-      </div>
-    {% endfor %}
-  </div>
-
-  <h5 class="mt-4">排行</h5>
-  <ol>
-    {% for item in snapshot.ranking %}
-      <li>{{ item.economy }} - {{ '%.1f'|format(item.score) }}</li>
-    {% endfor %}
-  </ol>
-
-  <div class="mt-3">
-    <a href="/api/macro/snapshot">API /api/macro/snapshot</a> ·
-    <a href="/macro/country?economy=US">国家详情（US）</a> ·
-    <a href="/api/macro/status">刷新状态</a>
-  </div>
-
-  <h5 class="mt-4">热力矩阵（综合分/指标分）</h5>
-  <div class="table-responsive">
-    <table class="table table-sm table-striped align-middle">
-      <thead>
-        <tr>
-          <th>经济体</th>
-          <th>综合分</th>
-          {% for ind in snapshot.matrix[snapshot.economies[0]].by_indicator.keys() %}
-            <th>{{ ind }}</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for eco in snapshot.economies %}
-          {% set row = snapshot.matrix[eco] %}
-          <tr>
-            <td><a href="/macro/country?economy={{ eco }}">{{ eco }}</a></td>
-            <td>
-              <span class="badge" style="background-color: rgb({{ 255 - (2.55*row.composite)|round(0,'floor') }}, {{ (2.55*row.composite)|round(0,'floor') }}, 80);">{{ '%.1f'|format(row.composite) }}</span>
-            </td>
-            {% for ind, iv in row.by_indicator.items() %}
-              <td>
-                <span class="badge" style="background-color: rgb({{ 255 - (2.55*iv)|round(0,'floor') }}, {{ (2.55*iv)|round(0,'floor') }}, 80);">{{ '%.1f'|format(iv) }}</span>
-              </td>
+            <div class="col-auto">
+                <label class="form-label">窗口</label>
+                <select class="form-select" name="window" onchange="this.form.submit()">
+                    {% for w in ['6m','1y','3y','5y','10y'] %}
+                        <option value="{{ w }}" {{ 'selected' if snapshot.window==w else '' }}>{{ w }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+        <div class="row g-3">
+            {% for eco in snapshot.economies %}
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">{{ eco }}</h6>
+                            {% set score = snapshot.matrix[eco]['composite'] %}
+                            <div class="progress" style="height: 10px;">
+                                <div class="progress-bar"
+                                     role="progressbar"
+                                     style="width: {{ '%.0f'|format(score) }}%;
+                                            background-color: rgb({{ 255 - (2.55*score)|round(0, 'floor') }}, {{ (2.55*score)|round(0, 'floor') }}, 80)"
+                                     aria-valuenow="{{ '%.0f'|format(score) }}"
+                                     aria-valuemin="0"
+                                     aria-valuemax="100"></div>
+                            </div>
+                            <div class="mt-2 small text-muted">综合分：{{ '%.1f'|format(score) }}</div>
+                        </div>
+                    </div>
+                </div>
             {% endfor %}
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-{% endblock %}
-
-
+        </div>
+        <h5 class="mt-4">排行</h5>
+        <ol>
+            {% for item in snapshot.ranking %}
+                <li>{{ item.economy }} - {{ '%.1f'|format(item.score) }}</li>
+            {% endfor %}
+        </ol>
+        <div class="mt-3">
+            <a href="/api/macro/snapshot">API /api/macro/snapshot</a> ·
+            <a href="/macro/country?economy=US">国家详情（US）</a> ·
+            <a href="/api/macro/status">刷新状态</a>
+        </div>
+        <h5 class="mt-4">热力矩阵（综合分/指标分）</h5>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>经济体</th>
+                        <th>综合分</th>
+                        {% for ind in snapshot.matrix[snapshot.economies[0]].by_indicator.keys() %}<th>{{ ind }}</th>{% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for eco in snapshot.economies %}
+                        {% set row = snapshot.matrix[eco] %}
+                        <tr>
+                            <td>
+                                <a href="/macro/country?economy={{ eco }}">{{ eco }}</a>
+                            </td>
+                            <td>
+                                <span class="badge"
+                                      style="background-color: rgb({{ 255 - (2.55*row.composite)|round(0, 'floor') }}, {{ (2.55*row.composite)|round(0, 'floor') }}, 80)">{{ '%.1f'|format(row.composite) }}</span>
+                            </td>
+                            {% for ind, iv in row.by_indicator.items() %}
+                                <td>
+                                    <span class="badge"
+                                          style="background-color: rgb({{ 255 - (2.55*iv)|round(0, 'floor') }}, {{ (2.55*iv)|round(0, 'floor') }}, 80)">{{ '%.1f'|format(iv) }}</span>
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endblock %}

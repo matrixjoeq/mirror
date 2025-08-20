@@ -7,10 +7,6 @@ omit =
     */venv/*
     */site-packages/*
     tests/*
-    services/macro_*.py
-    routes/macro_*.py
-    routes/api_macro.py
-    services/data_providers/*.py
 
 # Note: 'omit' only applies to [run]/[report]. HTML/XML respect [report].
 

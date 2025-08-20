@@ -10,7 +10,7 @@
                             <i class="bi bi-list-ul"></i> 交易记录
                         </h5>
                         <div class="d-flex gap-2">
-                            <a href="{{ url_for('trading.deleted_trades') }}"
+                            <a href="{{ url_for("trading.deleted_trades") }}"
                                class="btn btn-outline-warning">
                                 <i class="bi bi-trash"></i> 已删除记录
                             </a>
@@ -73,25 +73,39 @@
                 <div class="card-body">
                     <!-- 页面大小/过滤器 -->
                     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-2 gap-2">
-                        <div class="small text-muted">
-                            共 {{ total_count or 0 }} 条记录
-                        </div>
+                        <div class="small text-muted">共 {{ total_count or 0 }} 条记录</div>
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <div class="d-flex align-items-center gap-2">
                                 <label class="form-label mb-0">按代码过滤:</label>
-                                <input type="text" class="form-control form-control-sm" id="symbolsInput" placeholder="如: 600000, 000001" style="width: 280px;" value="{{ symbols_query or '' }}">
+                                <input type="text"
+                                       class="form-control form-control-sm"
+                                       id="symbolsInput"
+                                       placeholder="如: 600000, 000001"
+                                       style="width: 280px"
+                                       value="{{ symbols_query or '' }}">
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 <label class="form-label mb-0">按名称过滤:</label>
-                                <input type="text" class="form-control form-control-sm" id="namesInput" placeholder="如: 贵州茅台, 平安银行" style="width: 280px;" value="{{ names_query or '' }}">
+                                <input type="text"
+                                       class="form-control form-control-sm"
+                                       id="namesInput"
+                                       placeholder="如: 贵州茅台, 平安银行"
+                                       style="width: 280px"
+                                       value="{{ names_query or '' }}">
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 <label class="form-label mb-0">日期自:</label>
-                                <input type="date" class="form-control form-control-sm" id="dateFromInput" value="{{ date_from or '' }}">
+                                <input type="date"
+                                       class="form-control form-control-sm"
+                                       id="dateFromInput"
+                                       value="{{ date_from or '' }}">
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 <label class="form-label mb-0">至:</label>
-                                <input type="date" class="form-control form-control-sm" id="dateToInput" value="{{ date_to or '' }}">
+                                <input type="date"
+                                       class="form-control form-control-sm"
+                                       id="dateToInput"
+                                       value="{{ date_to or '' }}">
                             </div>
                             <div class="btn-group btn-group-sm" role="group" aria-label="快捷区间">
                                 <button class="btn btn-outline-secondary quick-range" data-days="7">最近7天</button>
@@ -106,7 +120,9 @@
                         </div>
                         <div class="d-flex align-items-center gap-2">
                             <label class="form-label mb-0">每页显示:</label>
-                            <select class="form-select form-select-sm" id="pageSizeSelect" style="width: auto;">
+                            <select class="form-select form-select-sm"
+                                    id="pageSizeSelect"
+                                    style="width: auto">
                                 {% for size in [25, 50, 100] %}
                                     <option value="{{ size }}" {% if page_size == size %}selected{% endif %}>{{ size }}</option>
                                 {% endfor %}
@@ -144,7 +160,8 @@
                                         {% set _ = params.append('sort=' ~ key) %}
                                         {% set next_dir = 'asc' if sort_key != key or sort_dir == 'desc' else 'desc' %}
                                         {% set _ = params.append('dir=' ~ next_dir) %}
-                                        <a class="text-decoration-none text-white" href="{{ url_for('trading.trades') }}?{{ '&'.join(params) }}">
+                                        <a class="text-decoration-none text-white"
+                                           href="{{ url_for("trading.trades") }}?{{ '&'.join(params) }}">
                                             {{ label }}
                                             {% if sort_key == key %}
                                                 {% if sort_dir == 'asc' %}
@@ -343,28 +360,30 @@
                                 {% set _ = qs_base.append('date_to=' ~ date_to) %}
                             {% endif %}
                             {% set base_query = '&'.join(qs_base) %}
-
                             {# 上一页 #}
                             {% set prev_page = 1 if page <= 1 else page - 1 %}
                             <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-                                <a class="page-link" href="{{ url_for('trading.trades') }}?{{ base_query }}&page={{ prev_page }}" aria-label="上一页">
+                                <a class="page-link"
+                                   href="{{ url_for("trading.trades") }}?{{ base_query }}&page={{ prev_page }}"
+                                   aria-label="上一页">
                                     <span aria-hidden="true">&laquo;</span>
                                 </a>
                             </li>
-
                             {# 页码 #}
                             {% set start = page - 2 if page - 2 > 1 else 1 %}
                             {% set end = page + 2 if page + 2 < total_pages else total_pages %}
                             {% for p in range(start, end + 1) %}
                                 <li class="page-item {{ 'active' if p == page else '' }}">
-                                    <a class="page-link" href="{{ url_for('trading.trades') }}?{{ base_query }}&page={{ p }}">{{ p }}</a>
+                                    <a class="page-link"
+                                       href="{{ url_for("trading.trades") }}?{{ base_query }}&page={{ p }}">{{ p }}</a>
                                 </li>
                             {% endfor %}
-
                             {# 下一页 #}
                             {% set next_page = total_pages if page >= total_pages else page + 1 %}
                             <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-                                <a class="page-link" href="{{ url_for('trading.trades') }}?{{ base_query }}&page={{ next_page }}" aria-label="下一页">
+                                <a class="page-link"
+                                   href="{{ url_for("trading.trades") }}?{{ base_query }}&page={{ next_page }}"
+                                   aria-label="下一页">
                                     <span aria-hidden="true">&raquo;</span>
                                 </a>
                             </li>

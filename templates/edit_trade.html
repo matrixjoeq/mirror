@@ -68,8 +68,7 @@
                                 </label>
                                 <select class="form-select" id="strategy_id" name="strategy_id">
                                     {% for strategy in strategies_data %}
-                                        <option value="{{ strategy.id }}"
-                                                {{ 'selected' if (trade.strategy_id and trade.strategy_id == strategy.id) or (not trade.strategy_id and strategy.id == 1) else '' }}>
+                                        <option value="{{ strategy.id }}" {{ 'selected' if (trade.strategy_id and trade.strategy_id == strategy.id) or (not trade.strategy_id and strategy.id == 1) else '' }}>
                                             {{ strategy.name }}
                                             {% if strategy.tags %}({{ strategy.tags|join(", ") }}){% endif %}
                                         </option>

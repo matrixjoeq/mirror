@@ -8,7 +8,7 @@
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-diagram-3"></i> {{ strategy_name }} - 总体表现
-                        <a href="{{ url_for('analysis.strategy_scores') }}"
+                        <a href="{{ url_for("analysis.strategy_scores") }}"
                            class="btn btn-outline-secondary btn-sm float-end">
                             <i class="bi bi-arrow-left"></i> 返回概览
                         </a>
@@ -130,28 +130,21 @@
                                 <select class="form-select form-select-sm"
                                         id="sortSelect"
                                         onchange="updateSort()">
-                                    <option value="total_score"
-                                            {{ 'selected' if sort_by == 'total_score' else '' }}>总分
+                                    <option value="total_score" {{ 'selected' if sort_by == 'total_score' else '' }}>总分
                                     </option>
-                                    <option value="win_rate_score"
-                                            {{ 'selected' if sort_by == 'win_rate_score' else '' }}>胜率得分
+                                    <option value="win_rate_score" {{ 'selected' if sort_by == 'win_rate_score' else '' }}>胜率得分
                                     </option>
-                                    <option value="profit_loss_ratio_score"
-                                            {{ 'selected' if sort_by == 'profit_loss_ratio_score' else '' }}>盈亏比得分
+                                    <option value="profit_loss_ratio_score" {{ 'selected' if sort_by == 'profit_loss_ratio_score' else '' }}>盈亏比得分
                                     </option>
-                                    <option value="frequency_score"
-                                            {{ 'selected' if sort_by == 'frequency_score' else '' }}>频率得分
+                                    <option value="frequency_score" {{ 'selected' if sort_by == 'frequency_score' else '' }}>频率得分
                                     </option>
-                                    <option value="symbol_code"
-                                            {{ 'selected' if sort_by == 'symbol_code' else '' }}>标的代码
+                                    <option value="symbol_code" {{ 'selected' if sort_by == 'symbol_code' else '' }}>标的代码
                                     </option>
                                     <option value="win_rate" {{ 'selected' if sort_by == 'win_rate' else '' }}>胜率
                                     </option>
-                                    <option value="avg_profit_loss_ratio"
-                                            {{ 'selected' if sort_by == 'avg_profit_loss_ratio' else '' }}>盈亏比
+                                    <option value="avg_profit_loss_ratio" {{ 'selected' if sort_by == 'avg_profit_loss_ratio' else '' }}>盈亏比
                                     </option>
-                                    <option value="avg_holding_days"
-                                            {{ 'selected' if sort_by == 'avg_holding_days' else '' }}>持仓天数
+                                    <option value="avg_holding_days" {{ 'selected' if sort_by == 'avg_holding_days' else '' }}>持仓天数
                                     </option>
                                 </select>
                             </div>

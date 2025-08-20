@@ -10,7 +10,7 @@ import time
 from flask import Flask
 
 from config import config
-from routes import main_bp, trading_bp, strategy_bp, analysis_bp, api_bp, admin_bp, macro_bp, api_macro_bp
+from routes import main_bp, trading_bp, strategy_bp, analysis_bp, api_bp, admin_bp, macro_bp, api_macro_bp, meso_bp
 
 
 def create_app(config_name=None):
@@ -34,6 +34,8 @@ def create_app(config_name=None):
     # 宏观观察体系（MVP）
     app.register_blueprint(macro_bp)
     app.register_blueprint(api_macro_bp)
+    # 中观观察体系（全球股指趋势）
+    app.register_blueprint(meso_bp)
 
     # 初始化并挂载服务到 app（供路由通过 current_app 使用）
     from services import DatabaseService, TradingService, StrategyService, AnalysisService
@@ -43,8 +45,10 @@ def create_app(config_name=None):
     if config_name == 'testing':
         db_path = os.path.join(tempfile.gettempdir(), f"mirror_test_{os.getpid()}_{int(time.time()*1000)}.db")
         macro_db_path = os.path.join(tempfile.gettempdir(), f"mirror_macro_test_{os.getpid()}_{int(time.time()*1000)}.db")
+        meso_db_path = os.path.join(tempfile.gettempdir(), f"mirror_meso_test_{os.getpid()}_{int(time.time()*1000)}.db")
         app.config['DB_PATH'] = db_path
         app.config['MACRO_DB_PATH'] = macro_db_path
+        app.config['MESO_DB_PATH'] = meso_db_path
     app.db_service = DatabaseService(db_path)
     app.trading_service = TradingService(app.db_service)
     app.strategy_service = StrategyService(app.db_service)

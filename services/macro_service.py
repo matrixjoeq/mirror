@@ -39,11 +39,7 @@ class MacroService:
 
     # --------- 对外接口（API/页面使用） ---------
     def get_snapshot(self, view: str = "value", date: Optional[str] = None, window: Optional[str] = None, nocache: bool = False) -> Dict[str, Any]:
-        """返回热力/排行快照。
-        若无数据，先进行一次最小样本数据的种子写入，保证页面/API 可用。
-        """
-        if not self.repo.has_any_data():
-            self._seed_minimal_sample()
+        """返回热力/排行快照（纯真实数据，无样例/兜底）。"""
         # 缓存命中（仅对未过滤的基础快照做缓存；后置过滤在路由层处理）
         cache_key = _make_cache_key(view, date, window)
         now = time.time()
@@ -210,9 +206,9 @@ class MacroService:
             {"pair": "USDJPY", "date": "2024-12-01", "price": 150.0},
         ])
 
-    # 对外：刷新（MVP：当前仅触发种子/占位，后续接入 Provider 拉取）
+    # 对外：刷新（仅尝试真实 Provider 拉取，不做样例兜底）
     def refresh_all(self) -> Dict[str, Any]:
-        # 使用 Provider 获取最新市场数据；失败时由 Provider 内部样本兜底
+        # 使用 Provider 获取最新市场数据；失败时不落任何数据
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         try:
             com_rows = fetch_commodities_latest()
@@ -238,13 +234,10 @@ class MacroService:
                 self.repo.record_refresh("worldbank", ts, len(wb_rows))
         except (RuntimeError, ValueError):
             pass
-        # 若库里仍无宏观数据，补一次宏观样本以确保可用
-        if not self.repo.has_any_data():
-            self._seed_minimal_sample()
         # 刷新后失效缓存（版本+清空）
         global _CACHE_VERSION
         _CACHE_VERSION += 1
         _SNAPSHOT_CACHE.clear()
-        return {"refreshed": True, "message": "Refresh completed (provider with sample fallback).", "cache_invalidated": True}
+        return {"refreshed": True, "message": "Refresh completed.", "cache_invalidated": True}
 
 
