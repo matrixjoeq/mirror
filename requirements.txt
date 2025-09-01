@@ -13,3 +13,5 @@ numpy==2.2.3
 pandas==2.2.3
 # empyrical 老版本在 Py3.13 元数据生成存在问题，优先使用兼容分支
 empyrical-reloaded==0.5.10
+requests==2.32.3
+mplfinance==0.12.10b0

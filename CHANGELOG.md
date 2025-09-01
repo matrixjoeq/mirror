@@ -1,5 +1,25 @@
 ## Changelog
 
+### 2025-08-30
+- tools: 新增 `tools/cn10yt_tool.py` 小工具，可抓取中国十年期国债收益率（`HQ.CN10YT`）历史数据（优先 TradingEconomics，回退 Investing.com），导出 CSV 并生成日度 K 线图，同时计算“当前收益率在历史中的百分位”用于性价比衡量。
+- 依赖：新增 `requests` 与 `mplfinance`（绘制 K 线）。
+- tools: 新增 `tools/cn30yt_tool.py` 小工具，抓取中国三十年期国债收益率历史数据，生成 CSV 与 K 线，并输出当前收益率历史百分位；仅使用合规数据源（TradingEconomics 来宾接口，回退至 Investing 历史表格）。
+  - 调整：移除 TradingEconomics 抓取尝试（该服务需要付费 API Key），改为优先使用 AkShare（`bond_china_yield`），失败时回退 Investing 历史表格。
+  - 增强：`tools/cn10yt_tool.py` 与 `tools/cn30yt_tool.py` 支持增量写入本地 SQLite（默认 `database/bond_yields.db`），基线起始日期固定为 2009-07-01；新增 CLI：`--db` 与 `--force-full`。
+
+### 2025-08-30 (later)
+- tools: 新增统一脚本 `tools/bond_yield_tool.py`，合并 CN10Y / CN30Y，并新增 US10Y；
+  - 起始日期统一调整为 2006-03-01；
+  - 保持增量入库到 `database/bond_yields.db`，各自表名：`cn10y_yield`、`cn30y_yield`、`us10y_yield`；
+  - 数据源：CN 使用 AkShare；US10Y 仅使用 FRED API（`fredapi`，系列 DGS10）；移除所有网页爬取备用路径与代理设置。
+  - CLI: `--instruments CN10Y,CN30Y,US10Y|all`，`--source auto|akshare|investing`，`--db`，`--no-plot`，`--full-update`，`--fred-api-key`；
+  - 输出各自 CSV 与可选 K 线 PNG。
+
+#### 2025-08-30 (window)
+- tools: `bond_yield_tool.py` 新增绘图/百分位窗口选项 `--window`（`all`|`10y`|`5y`|`1y`，默认 `all`）。
+  - 仅影响绘图与当前值百分位统计所使用的数据窗口，不影响数据库的全量历史与增量写入。
+  - K 线图标题包含窗口标签；控制台输出新增 `Window` 与窗口内百分位。
+
 ## feat: 宏观观察体系 MVP 脚手架
 - 新增文档 `doc/plans/macro_observation_mvp.md`，定义目标、指标、数据源、API 与页面。
 - 新增服务层 `services/macro_service.py`、仓储层 `services/macro_repository.py`、Provider 适配目录 `services/data_providers/`。
