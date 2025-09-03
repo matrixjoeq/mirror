@@ -1,3 +1,7 @@
+  - UI：`/meso` 仪表盘最小可用版：
+    - 视图选择（资产大类 / 股票-跨市场 / 股票-市场内类别）
+    - 回报口径切换（price / total）与市场选择（类别视图）
+    - 客户端表格展示对应排名并显示 as-of
 ## Changelog
 
 ### 2025-08-30
@@ -170,5 +174,23 @@
 
 ### 2025-09-03
 - docs: 新增 `doc/meso_rs_design.md`，详细记录中观（A/HK/US）相对强弱RS需求分析、方案与算法设计，并与现代趋势跟踪方法做系统对比；定义API草案、数据口径（USD）与增量刷新流程、信号与测试策略。
+
+- docs: 新增 `doc/plans/meso_rs_implementation_plan.md`，落地实施计划（数据层 `rs_scores`、服务层 RS 计算与刷新、API 端点与 UI、测试策略与阈值、风险对策与里程碑）。
+
+- fix(meso): 跨资产USD换算严格使用“当日汇率”（Frankfurter 时序），在刷新流程中对每日FX做前向填充，移除非USD币种的1.0兜底，缺失当日则跳过该日USD值，保证口径正确。
+
+### 2025-09-03 (later)
+- feat(meso-mvp): 管理与刷新脚手架
+  - 仓储：新增 `index_metadata` 与 `meso_settings`（全局起始日期），支持批量 upsert 与列表查询。
+  - Provider：`fetch_index_history` 支持 `start/end` 与 `auto_adjust`（前复权）参数，便于“有除权全量刷新、无除权增量更新”。
+  - 服务：新增 `upsert_tracked_instruments`、`list_tracked_instruments`、`set_global_start_date`；实现基础的大类资产强度对比（按 composite 聚合到 asset_class）。
+  - API：新增 `routes/api_meso.py`，提供 `/api/meso/instruments`（GET/POST）、`/api/meso/settings/start_date`（GET/POST）、`/api/meso/refresh`（POST）、`/api/meso/rankings/asset_class`（GET）。
+  - 应用：注册 `api_meso_bp` 蓝图。
+  - 口径：新增“回报口径”双模支持（price vs total）：
+    - 仓储 `index_prices` 增加 `close_tr/close_usd_tr` 字段。
+    - 刷新接口 `/api/meso/refresh` 支持 `return_mode=price|total`（默认 price）。
+    - 排名接口 `/api/meso/rankings/asset_class` 支持 `return_mode=price|total`（默认 price），计算 composite 时选择对应 USD 序列。
+  - 排名扩展：
+    - 新增 `/api/meso/rankings/equity_market` 与 `/api/meso/rankings/equity_category?market=CN|US|...`，均支持 `return_mode=price|total`。
 
 

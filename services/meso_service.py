@@ -53,7 +53,7 @@ class MesoService:
         return {"symbols": symbols, "window": window, "currency": currency, "series": data}
 
     # ---- 真实数据刷新 ----
-    def refresh_prices_and_scores(self, symbols: Optional[List[str]] = None, period: str = "3y") -> Dict[str, Any]:
+    def refresh_prices_and_scores(self, symbols: Optional[List[str]] = None, period: str = "3y", since: Optional[str] = None, return_mode: str = "price") -> Dict[str, Any]:
         # 仅真实数据，不做样本；调用者需确保网络可用并安装依赖
         syms = symbols or [row["symbol"] for row in INDEX_DEFS]
         from .data_providers.meso_market_provider import (
@@ -62,7 +62,8 @@ class MesoService:
         )
 
         # 抓取历史收盘价
-        hist_map = fetch_index_history(syms, period=period)
+        use_adjusted = (return_mode == "total")
+        hist_map = fetch_index_history(syms, period=period, start=since, adjusted=False, total_return=(return_mode == "total"))
 
         # 计算增量边界：按各 symbol 最新已存日期+1 作为起始
         cur_map = index_currency_map()
@@ -86,6 +87,24 @@ class MesoService:
         # 拉取历史当日汇率时序并换算到 USD
         unique_curs = sorted(set(cur_map.get(s, "USD") for s in syms))
         fx_ts = fetch_fx_timeseries_to_usd(unique_curs, start_date, end_date)  # {date: {CUR: USD_rate}}
+        # 前向填充每日汇率，避免非USD币种缺失时错误使用1.0
+        all_fx_dates = sorted(fx_ts.keys())
+        currencies = set(unique_curs)
+        currencies.add("USD")
+        ff_fx_ts: Dict[str, Dict[str, float]] = {}
+        last_seen: Dict[str, float] = {"USD": 1.0}
+        for d in all_fx_dates:
+            day_map = fx_ts.get(d, {}) or {}
+            # 更新已知汇率
+            for c in currencies:
+                if c == "USD":
+                    last_seen["USD"] = 1.0
+                    continue
+                v = day_map.get(c)
+                if v is not None:
+                    last_seen[c] = float(v)
+            # 写入前向填充后的映射
+            ff_fx_ts[d] = {c: last_seen[c] for c in last_seen if c in currencies and c in last_seen}
 
         # 写入价格表（含“当日汇率”换算到 USD），仅增量（大于已存的最后日期）
         price_rows: List[Dict[str, Any]] = []
@@ -97,15 +116,21 @@ class MesoService:
                 if last_date and d <= last_date:
                     continue
                 close = float(r["close"]) if r.get("close") is not None else None
-                day_fx = fx_ts.get(d, {})
-                usd_rate = day_fx.get(cur, 1.0)
-                close_usd = (close * usd_rate) if close is not None else None
+                day_fx = ff_fx_ts.get(d, {})
+                usd_rate = 1.0 if cur == "USD" else day_fx.get(cur)
+                # 若当日汇率不可得（含前向填充后仍无），则跳过该日USD换算
+                close_usd = (close * usd_rate) if (close is not None and usd_rate is not None) else None
+                # total return 路径（若有）
+                close_tr = r.get("close_tr")
+                close_usd_tr = (close_tr * usd_rate) if (close_tr is not None and usd_rate is not None) else None
                 price_rows.append({
                     "symbol": sym,
                     "date": d,
                     "close": close,
+                    "close_tr": close_tr,
                     "currency": cur,
                     "close_usd": close_usd,
+                    "close_usd_tr": close_usd_tr,
                 })
         if price_rows:
             self.repo.upsert_index_prices(price_rows)
@@ -140,5 +165,217 @@ class MesoService:
             self.repo.upsert_trend_scores(score_rows)
 
         return {"refreshed": True, "symbols": syms, "prices": len(price_rows), "scores": len(score_rows)}
+
+    # ------- 管理与设置 -------
+    def upsert_tracked_instruments(self, instruments: List[Dict[str, Any]]) -> Dict[str, Any]:
+        if not instruments:
+            return {"updated": 0}
+        updated = self.repo.upsert_index_metadata(instruments)
+        return {"updated": updated}
+
+    def list_tracked_instruments(self, only_active: bool = True) -> List[Dict[str, Any]]:
+        return self.repo.list_index_metadata(only_active=only_active)
+
+    def set_global_start_date(self, date_str: str) -> Dict[str, Any]:
+        self.repo.set_global_start_date(date_str)
+        return {"ok": True, "global_start_date": date_str}
+
+    # ------- 基础大类资产强度对比（MVP） -------
+    def get_asset_class_rankings(self, asof: Optional[str] = None, top: int = 10, return_mode: str = "price") -> Dict[str, Any]:
+        symbols: List[str] = [row.get("symbol") for row in self.repo.list_index_metadata(only_active=True)]
+        meta_map: Dict[str, Dict[str, Any]] = {row.get("symbol"): row for row in self.repo.list_index_metadata(only_active=True)}
+        rankings: List[Dict[str, Any]] = []
+        asof_date = asof or datetime.utcnow().strftime("%Y-%m-%d")
+
+        for sym in symbols:
+            prices = self.repo.fetch_prices(sym)
+            # 取 close_usd 时间序列
+            if return_mode == "total":
+                series = [(p["date"], p.get("close_usd_tr")) for p in prices if p.get("close_usd_tr") is not None]
+            else:
+                series = [(p["date"], p.get("close_usd")) for p in prices if p.get("close_usd") is not None]
+            if not series:
+                continue
+            # 确保按日期排序
+            series.sort(key=lambda x: x[0])
+            # 定位 asof 索引
+            dates = [d for d, _ in series]
+            if asof_date not in dates:
+                # 找到 <= asof 的最后一个日期
+                dates_le = [d for d in dates if d <= asof_date]
+                if not dates_le:
+                    continue
+                use_date = max(dates_le)
+            else:
+                use_date = asof_date
+            idx = dates.index(use_date)
+            def window_return(window_days: int) -> Optional[float]:
+                if idx - window_days < 0:
+                    return None
+                v_now = float(series[idx][1])
+                v_past = float(series[idx - window_days][1])
+                if v_past == 0:
+                    return None
+                return v_now / v_past - 1.0
+            r1 = window_return(21)
+            r3 = window_return(63)
+            r6 = window_return(126)
+            r12 = window_return(252)
+            # 降级处理：缺失用可得窗口按权重归一（MVP）
+            weights = []
+            rets = []
+            if r12 is not None:
+                weights.append(0.4); rets.append(r12)
+            if r6 is not None:
+                weights.append(0.3); rets.append(r6)
+            if r3 is not None:
+                weights.append(0.2); rets.append(r3)
+            if r1 is not None:
+                weights.append(0.1); rets.append(r1)
+            if not weights:
+                continue
+            total_w = sum(weights)
+            composite = sum(w * r for w, r in zip(weights, rets)) / (total_w if total_w else 1.0)
+            rankings.append({
+                "symbol": sym,
+                "asof": use_date,
+                "asset_class": meta_map.get(sym, {}).get("asset_class", "unknown"),
+                "market": meta_map.get(sym, {}).get("market", ""),
+                "composite": composite,
+            })
+
+        # 聚合到资产大类：取该类中 composite 的最大值（代表该类最强者）
+        class_score: Dict[str, float] = {}
+        for row in rankings:
+            ac = row.get("asset_class", "unknown")
+            score = row.get("composite", 0.0)
+            if ac not in class_score or score > class_score[ac]:
+                class_score[ac] = score
+        ordered = sorted(class_score.items(), key=lambda kv: kv[1], reverse=True)
+        result = [{"asset_class": ac, "score": sc} for ac, sc in ordered[:top]]
+        return {"asof": asof_date, "rankings": result}
+
+    # ------- 股票：跨市场横向排名（equity.market） -------
+    def get_equity_market_rankings(self, asof: Optional[str] = None, top: int = 10, return_mode: str = "price") -> Dict[str, Any]:
+        items = self.repo.list_index_metadata(only_active=True)
+        # 仅 equity
+        symbols = [row.get("symbol") for row in items if str(row.get("asset_class", "")).lower() == "equity"]
+        meta_map: Dict[str, Dict[str, Any]] = {row.get("symbol"): row for row in items}
+        asof_date = asof or datetime.utcnow().strftime("%Y-%m-%d")
+
+        # 计算每个 symbol 的 composite
+        symbol_scores: Dict[str, float] = {}
+        for sym in symbols:
+            prices = self.repo.fetch_prices(sym)
+            series = (
+                [(p["date"], p.get("close_usd_tr")) for p in prices if p.get("close_usd_tr") is not None]
+                if return_mode == "total"
+                else [(p["date"], p.get("close_usd")) for p in prices if p.get("close_usd") is not None]
+            )
+            if not series:
+                continue
+            series.sort(key=lambda x: x[0])
+            dates = [d for d, _ in series]
+            use_date = asof_date if asof_date in dates else (max([d for d in dates if d <= asof_date]) if any(d <= asof_date for d in dates) else None)
+            if not use_date:
+                continue
+            idx = dates.index(use_date)
+            def window_return(window_days: int) -> Optional[float]:
+                if idx - window_days < 0:
+                    return None
+                v_now = float(series[idx][1])
+                v_past = float(series[idx - window_days][1])
+                if v_past == 0:
+                    return None
+                return v_now / v_past - 1.0
+            r1 = window_return(21)
+            r3 = window_return(63)
+            r6 = window_return(126)
+            r12 = window_return(252)
+            weights, rets = [], []
+            if r12 is not None:
+                weights.append(0.4); rets.append(r12)
+            if r6 is not None:
+                weights.append(0.3); rets.append(r6)
+            if r3 is not None:
+                weights.append(0.2); rets.append(r3)
+            if r1 is not None:
+                weights.append(0.1); rets.append(r1)
+            if not weights:
+                continue
+            total_w = sum(weights)
+            composite = sum(w * r for w, r in zip(weights, rets)) / (total_w if total_w else 1.0)
+            symbol_scores[sym] = composite
+
+        # 聚合到 market：取该市场中 composite 的最大值
+        market_score: Dict[str, float] = {}
+        for sym, comp in symbol_scores.items():
+            mkt = str(meta_map.get(sym, {}).get("market", "")).upper() or "UNKNOWN"
+            if mkt not in market_score or comp > market_score[mkt]:
+                market_score[mkt] = comp
+        ordered = sorted(market_score.items(), key=lambda kv: kv[1], reverse=True)
+        result = [{"market": mk, "score": sc} for mk, sc in ordered[:top]]
+        return {"asof": asof_date, "rankings": result}
+
+    # ------- 市场内：按类别横向排名（equity.category within market） -------
+    def get_equity_category_rankings(self, market: str, asof: Optional[str] = None, top: int = 10, return_mode: str = "price") -> Dict[str, Any]:
+        items = self.repo.list_index_metadata(only_active=True)
+        market_u = (market or "").upper()
+        # 仅 equity 且指定市场
+        symbols = [row.get("symbol") for row in items if str(row.get("asset_class", "")).lower() == "equity" and str(row.get("market", "")).upper() == market_u]
+        meta_map: Dict[str, Dict[str, Any]] = {row.get("symbol"): row for row in items}
+        asof_date = asof or datetime.utcnow().strftime("%Y-%m-%d")
+        symbol_scores: Dict[str, float] = {}
+        for sym in symbols:
+            prices = self.repo.fetch_prices(sym)
+            series = (
+                [(p["date"], p.get("close_usd_tr")) for p in prices if p.get("close_usd_tr") is not None]
+                if return_mode == "total"
+                else [(p["date"], p.get("close_usd")) for p in prices if p.get("close_usd") is not None]
+            )
+            if not series:
+                continue
+            series.sort(key=lambda x: x[0])
+            dates = [d for d, _ in series]
+            use_date = asof_date if asof_date in dates else (max([d for d in dates if d <= asof_date]) if any(d <= asof_date for d in dates) else None)
+            if not use_date:
+                continue
+            idx = dates.index(use_date)
+            def window_return(window_days: int) -> Optional[float]:
+                if idx - window_days < 0:
+                    return None
+                v_now = float(series[idx][1])
+                v_past = float(series[idx - window_days][1])
+                if v_past == 0:
+                    return None
+                return v_now / v_past - 1.0
+            r1 = window_return(21)
+            r3 = window_return(63)
+            r6 = window_return(126)
+            r12 = window_return(252)
+            weights, rets = [], []
+            if r12 is not None:
+                weights.append(0.4); rets.append(r12)
+            if r6 is not None:
+                weights.append(0.3); rets.append(r6)
+            if r3 is not None:
+                weights.append(0.2); rets.append(r3)
+            if r1 is not None:
+                weights.append(0.1); rets.append(r1)
+            if not weights:
+                continue
+            total_w = sum(weights)
+            composite = sum(w * r for w, r in zip(weights, rets)) / (total_w if total_w else 1.0)
+            symbol_scores[sym] = composite
+
+        # 聚合到类别：取该类别中 composite 的最大值
+        cat_score: Dict[str, float] = {}
+        for sym, comp in symbol_scores.items():
+            cat = str(meta_map.get(sym, {}).get("category", "")).lower() or "unknown"
+            if cat not in cat_score or comp > cat_score[cat]:
+                cat_score[cat] = comp
+        ordered = sorted(cat_score.items(), key=lambda kv: kv[1], reverse=True)
+        result = [{"category": cat, "score": sc} for cat, sc in ordered[:top]]
+        return {"market": market_u, "asof": asof_date, "rankings": result}
 
 

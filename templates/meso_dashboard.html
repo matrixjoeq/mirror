@@ -2,37 +2,121 @@
 {% block content %}
     <div class="container">
         <h2>中观观察（全球股指趋势）</h2>
-        <div class="mb-3">
-            <a href="/api/meso/indexes">API /api/meso/indexes</a>
+
+        <div class="row g-3 align-items-end mb-3">
+            <div class="col-auto">
+                <label for="viewSelect" class="form-label">视图</label>
+                <select id="viewSelect" class="form-select form-select-sm">
+                    <option value="asset_class" selected>资产大类</option>
+                    <option value="equity_market">股票-跨市场</option>
+                    <option value="equity_category">股票-市场内类别</option>
+                </select>
+            </div>
+            <div class="col-auto" id="marketPicker" style="display:none;">
+                <label for="marketSelect" class="form-label">市场</label>
+                <select id="marketSelect" class="form-select form-select-sm">
+                    <option value="CN">CN</option>
+                    <option value="HK">HK</option>
+                    <option value="US" selected>US</option>
+                    <option value="EU">EU</option>
+                    <option value="JP">JP</option>
+                    <option value="UK">UK</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label for="modeSelect" class="form-label">回报口径</label>
+                <select id="modeSelect" class="form-select form-select-sm">
+                    <option value="price" selected>价格</option>
+                    <option value="total">全收益</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button id="refreshBtn" class="btn btn-sm btn-primary">刷新榜单</button>
+            </div>
         </div>
+
         <div class="table-responsive">
-            <table class="table table-sm table-striped align-middle">
+            <table class="table table-sm table-striped align-middle" id="rankTable">
                 <thead>
-                    <tr>
-                        <th>代码</th>
+                    <tr id="rankHead">
                         <th>名称</th>
-                        <th>区域</th>
-                        <th>货币</th>
-                        <th>操作</th>
+                        <th>分数</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for idx in indexes %}
-                        <tr>
-                            <td>
-                                <span class="badge bg-secondary">{{ idx.symbol }}</span>
-                            </td>
-                            <td>{{ idx.name }}</td>
-                            <td>{{ idx.region }}</td>
-                            <td>{{ idx.currency }}</td>
-                            <td>
-                                <a class="btn btn-sm btn-outline-primary"
-                                   href="/api/meso/trend_series?symbol={{ idx.symbol }}">趋势序列</a>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
+                <tbody id="rankBody"></tbody>
             </table>
         </div>
+        <div class="text-muted" id="asofInfo"></div>
     </div>
+    <script>
+    (function(){
+        const viewSel = document.getElementById('viewSelect');
+        const modeSel = document.getElementById('modeSelect');
+        const marketPicker = document.getElementById('marketPicker');
+        const marketSel = document.getElementById('marketSelect');
+        const btn = document.getElementById('refreshBtn');
+        const head = document.getElementById('rankHead');
+        const body = document.getElementById('rankBody');
+        const asofInfo = document.getElementById('asofInfo');
+
+        function updateHead(view){
+            head.innerHTML = '';
+            if(view === 'asset_class'){
+                head.insertAdjacentHTML('beforeend', '<th>资产大类</th><th>强度分</th>');
+            } else if(view === 'equity_market'){
+                head.insertAdjacentHTML('beforeend', '<th>市场</th><th>强度分</th>');
+            } else {
+                head.insertAdjacentHTML('beforeend', '<th>类别</th><th>强度分</th>');
+            }
+        }
+
+        async function load(){
+            const view = viewSel.value;
+            const mode = modeSel.value;
+            const top = 20;
+            body.innerHTML = '<tr><td colspan="2">加载中…</td></tr>';
+            let url = '';
+            if(view === 'asset_class'){
+                url = `/api/meso/rankings/asset_class?return_mode=${mode}&top=${top}`;
+            } else if(view === 'equity_market'){
+                url = `/api/meso/rankings/equity_market?return_mode=${mode}&top=${top}`;
+            } else {
+                const mkt = marketSel.value;
+                url = `/api/meso/rankings/equity_category?market=${encodeURIComponent(mkt)}&return_mode=${mode}&top=${top}`;
+            }
+            try{
+                const resp = await fetch(url);
+                const data = await resp.json();
+                const list = data.rankings || [];
+                asofInfo.textContent = data.asof ? `As of ${data.asof}` : '';
+                body.innerHTML = '';
+                if(list.length === 0){
+                    body.innerHTML = '<tr><td colspan="2">暂无数据</td></tr>';
+                    return;
+                }
+                for(const row of list){
+                    let name = row.asset_class || row.market || row.category || '';
+                    const score = (row.score !== undefined && row.score !== null) ? row.score.toFixed(4) : '';
+                    body.insertAdjacentHTML('beforeend', `<tr><td>${name}</td><td>${score}</td></tr>`);
+                }
+            }catch(e){
+                body.innerHTML = `<tr><td colspan="2">加载失败：${e}</td></tr>`;
+            }
+        }
+
+        function onViewChange(){
+            const view = viewSel.value;
+            marketPicker.style.display = (view === 'equity_category') ? '' : 'none';
+            updateHead(view);
+        }
+
+        viewSel.addEventListener('change', () => { onViewChange(); load(); });
+        modeSel.addEventListener('change', load);
+        marketSel.addEventListener('change', load);
+        btn.addEventListener('click', load);
+
+        onViewChange();
+        load();
+    })();
+    </script>
 {% endblock %}

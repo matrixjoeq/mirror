@@ -8,6 +8,7 @@ from .strategy_routes import strategy_bp
 from .analysis_routes import analysis_bp
 from .macro_routes import macro_bp
 from .api_macro import api_macro_bp
+from .api_meso import api_meso_bp
 from .meso_routes import meso_bp
 from .admin_routes import admin_bp
 from .api_routes import api_bp
@@ -20,6 +21,7 @@ __all__ = [
     'macro_bp',
     'meso_bp',
     'api_macro_bp',
+    'api_meso_bp',
     'api_bp',
     'admin_bp'
 ]

@@ -51,20 +51,27 @@ def fetch_fx_rates_usd(base: str, quote_list: List[str]) -> Dict[str, float]:
     return out
 
 
-def fetch_index_history(symbols: List[str], period: str = "5y") -> Dict[str, List[Dict]]:
+def fetch_index_history(symbols: List[str], period: str = "5y", start: Optional[str] = None, end: Optional[str] = None, adjusted: bool = False, total_return: bool = False) -> Dict[str, List[Dict]]:
     import yfinance as yf
     out: Dict[str, List[Dict]] = {}
     for sym in symbols:
         try:
             ticker = yf.Ticker(sym)
-            hist = ticker.history(period=period, interval="1d", auto_adjust=False)
+            if start or end:
+                hist = ticker.history(start=start, end=end, interval="1d", auto_adjust=adjusted)
+            else:
+                hist = ticker.history(period=period, interval="1d", auto_adjust=adjusted)
             # 仅保留有收盘价的日期
             rows = []
             for ts, row in hist.iterrows():
                 close = row.get("Close")
                 if close is None:
                     continue
-                rows.append({"date": ts.strftime("%Y-%m-%d"), "close": float(close)})
+                item = {"date": ts.strftime("%Y-%m-%d"), "close": float(close)}
+                if total_return:
+                    # yfinance 无直接 TR 列，这里暂留接口位（后续可通过配套TR指数或ETF分红再投估算）
+                    item["close_tr"] = None
+                rows.append(item)
             out[sym] = rows
         except Exception:
             out[sym] = []
