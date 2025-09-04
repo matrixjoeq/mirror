@@ -16,7 +16,7 @@ class StrategyService:
     """策略管理服务"""
     
     def __init__(self, db_service: Optional[DatabaseService] = None):
-        self.db = db_service or DatabaseService()
+        self.db = db_service or DatabaseService(create_trading_schema=True)
     
     def get_all_strategies(self, include_inactive: bool = False, return_dto: bool = False) -> List[Any]:
         """获取所有策略"""

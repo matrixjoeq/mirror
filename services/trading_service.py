@@ -22,7 +22,7 @@ class TradingService:
     """交易管理服务"""
 
     def __init__(self, db_service: Optional[DatabaseService] = None):
-        self.db = db_service or DatabaseService()
+        self.db = db_service or DatabaseService(create_trading_schema=True)
         self.strategy_service = StrategyService(self.db)
         self.trade_repo = TradeRepository(self.db)
 

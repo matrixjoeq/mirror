@@ -417,8 +417,100 @@ def meso_refresh():
             symbols = [str(s).strip() for s in symbols_raw if str(s).strip()]
     period = request.args.get('period', '3y')
     svc = MesoService()
-    result = svc.refresh_prices_and_scores(symbols=symbols, period=period)
+    # 统一从全局起始日期开始，服务内仍做去重与仅插入未存日期
+    try:
+        since = svc.repo.get_global_start_date()
+    except Exception:
+        since = None
+    result = svc.refresh_prices_and_scores(symbols=symbols, period=period, since=since)
     return jsonify({'success': True, 'data': result})
+
+
+@api_bp.route('/meso/delete_symbol', methods=['POST'])
+@handle_errors
+def meso_delete_symbol():
+    symbol = request.args.get('symbol') or (request.json.get('symbol') if request.is_json else None)
+    if not symbol:
+        return jsonify({'success': False, 'message': 'symbol is required'}), 400
+    remove_meta = request.args.get('remove_meta') or (request.json.get('remove_meta') if request.is_json else None)
+    remove_meta = str(remove_meta).lower() in ('1','true','yes','on')
+    repo = MesoService().repo
+    result = repo.delete_symbol_data(symbol)
+    meta_deleted = 0
+    if remove_meta:
+        meta_deleted = repo.delete_index_metadata(symbol)
+    return jsonify({'success': True, 'message': f"deleted total: {result.get('total',0)}", 'detail': result, 'metadata_deleted': meta_deleted})
+
+
+# ---- 资产大类横向排名（强制 USD / 共同开市日 / 统一价格指标） ----
+
+@api_bp.route('/meso/rankings/asset_class')
+@handle_errors
+def get_meso_asset_class_rankings():
+    asof = request.args.get('asof')
+    top = request.args.get('top', type=int) or 10
+    return_mode = request.args.get('return_mode', 'price')  # price|total
+    svc = MesoService()
+    data = svc.get_asset_class_rankings(asof=asof, top=top, return_mode=return_mode)
+    return jsonify({'success': True, 'data': data})
+
+
+@api_bp.route('/meso/instruments')
+@handle_errors
+def meso_instruments():
+    svc = MesoService()
+    data = svc.get_instruments_overview()
+    return jsonify({'success': True, 'data': data})
+
+
+@api_bp.route('/meso/instruments', methods=['POST'])
+@handle_errors
+def meso_instruments_upsert():
+    """新增/更新观察对象（标的）。
+
+    接收 JSON 或表单：symbol, name, currency, region, market, asset_class, category, subcategory, provider, instrument_type, is_active
+    provider 允许：FRED, YAHOO, SINA, EASTMONEY；instrument_type 允许：index, etf, stock, commodity, bond_yield
+    """
+    svc = MesoService()
+    form = request.form if not request.is_json else request.json
+    if not form:
+        return jsonify({'success': False, 'message': 'empty payload'}), 400
+    allowed = {'FRED', 'YAHOO', 'SINA', 'EASTMONEY'}
+    provider = (form.get('provider') or '').upper()
+    if provider and provider not in allowed:
+        return jsonify({'success': False, 'message': f'provider must be one of {sorted(allowed)}'}), 400
+    inst_allowed = {'INDEX','ETF','STOCK','COMMODITY','BOND_YIELD'}
+    instrument_type = (form.get('instrument_type') or '').upper()
+    if instrument_type and instrument_type not in inst_allowed:
+        return jsonify({'success': False, 'message': f'instrument_type must be one of {sorted(inst_allowed)}'}), 400
+    symbol = (form.get('symbol') or '').strip()
+    if not symbol:
+        return jsonify({'success': False, 'message': 'symbol is required'}), 400
+    payload_item = {
+        'symbol': symbol,
+        'name': form.get('name'),
+        'currency': form.get('currency'),
+        'region': form.get('region'),
+        'market': form.get('market'),
+        'asset_class': form.get('asset_class'),
+        'category': form.get('category'),
+        'subcategory': form.get('subcategory'),
+        'provider': provider or None,
+        'instrument_type': instrument_type or None,
+        'use_adjusted': True,
+        'always_full_refresh': False,
+        'benchmark_symbol': form.get('benchmark_symbol'),
+        'start_date_override': form.get('start_date_override'),
+        'is_active': (str(form.get('is_active', '1')) in ('1','true','True','on')),
+    }
+    # 唯一性约束：若重复，返回 409
+    try:
+        res = svc.upsert_tracked_instruments([payload_item])
+    except Exception as e:
+        if 'UNIQUE' in str(e).upper():
+            return jsonify({'success': False, 'message': 'symbol already exists'}), 409
+        raise
+    return jsonify({'success': True, 'data': res})
 
 
 @api_bp.errorhandler(404)

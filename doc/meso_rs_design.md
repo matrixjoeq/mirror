@@ -56,6 +56,16 @@
 
 ---
 
+#### 比较日历对齐规则（重要）
+- 大类资产横向对比：仅使用“从全局起始日期（global start date）至今，所有纳入对比市场共同开市”的交易日集合进行计算与排序（日期交集）。
+- 目的：消除市场间交易日差异带来的偏差，确保同一组日期上的可比性。
+- 实施要点：
+  - 在刷新/计算阶段预先查询日期交集；缺任一市场当日数据则该日排除。
+  - USD 口径：当日 FX 缺失时当天 USD 价视为无效，不参与交集。
+  - 对比窗口从 `meso_settings.global_start_date` 起算（或 API 参数覆盖）。
+
+---
+
 #### 数据模型与存储（建议）
 - index_metadata(symbol, market, name, currency, region, is_active)
 - index_prices(symbol, date, close, currency, close_usd, UNIQUE(symbol,date))
@@ -116,3 +126,13 @@
 - 阈值：入场/退出/止损分位、斜率门槛、确认天数
 - 基准：市场内与全局基准符号
 - 频率：日/周
+
+#### 货币统一规则
+- 市场内比较：使用该市场本币价格序列（price→close，total→close_tr），不换算 USD。
+- 跨市场比较：统一换算为 USD 序列（price→close_usd，total→close_usd_tr），显式反映汇率对资产价格的影响。
+- 时间尺度仍使用共同开市日交集；价格指标严格二选一 `price|total`。
+
+#### MVP 页面与接口（资产大类）
+- 页面：`/meso` → 展示资产大类横向榜单（强度分），支持切换 `price|total`。
+- 接口：`GET /api/meso/rankings/asset_class?return_mode=price|total&top=20`
+- 口径：跨市场统一 USD；共同开市日交集；价格指标严格二选一。

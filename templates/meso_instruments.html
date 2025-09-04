@@ -1,0 +1,376 @@
+{% extends 'base.html' %}
+{% block content %}
+    <div class="container">
+        <h4 class="mb-3">中观观察 - 观察对象管理</h4>
+
+        <div class="card mb-4">
+            <div class="card-header">新增 / 更新 标的</div>
+            <div class="card-body">
+                <form id="instrumentForm" class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">标的代码 (symbol) *</label>
+                        <input type="text" class="form-control form-control-sm" name="symbol" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">名称</label>
+                        <input type="text" class="form-control form-control-sm" name="name">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">市场</label>
+                        <select name="market" class="form-select form-select-sm">
+                            <option value="GLOBAL">全球</option>
+                            <option value="US">美国</option>
+                            <option value="EU">欧洲</option>
+                            <option value="JP">日本</option>
+                            <option value="CN" selected>中国</option>
+                            <option value="HK">香港</option>
+                            <option value="EM">新兴</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">资产大类</label>
+                        <select name="asset_class" class="form-select form-select-sm">
+                            <option value="equity" selected>股票</option>
+                            <option value="bond">债券</option>
+                            <option value="commodity">商品</option>
+                            <option value="cash">现金</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">币种</label>
+                        <select name="currency" class="form-select form-select-sm">
+                            <option value="USD">美元</option>
+                            <option value="EUR">欧元</option>
+                            <option value="JPY">日元</option>
+                            <option value="CNY" selected>人民币</option>
+                            <option value="HKD">港币</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">一级分类</label>
+                        <input type="text" class="form-control form-control-sm" name="category">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">二级分类</label>
+                        <input type="text" class="form-control form-control-sm" name="subcategory">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">历史数据源 *</label>
+                        <select name="provider" class="form-select form-select-sm" required>
+                            <option value="">选择数据源</option>
+                            <option value="FRED">FRED</option>
+                            <option value="YAHOO">YAHOO</option>
+                            <option value="SINA">SINA</option>
+                            <option value="EASTMONEY">EASTMONEY</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">标的类型 *</label>
+                        <select name="instrument_type" class="form-select form-select-sm" required>
+                            <option value="">选择类型</option>
+                            <option value="INDEX">指数</option>
+                            <option value="ETF">ETF</option>
+                            <option value="STOCK">股票</option>
+                            <option value="COMMODITY">商品价格</option>
+                            <option value="BOND_YIELD">债券收益率</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">起始日期覆盖(可选)</label>
+                        <input type="date" class="form-control form-control-sm" name="start_date_override">
+                    </div>
+                    <div class="col-md-2 form-check mt-4 ms-2">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="isActive" checked>
+                        <label class="form-check-label" for="isActive">启用</label>
+                    </div>
+                    <div class="col-12">
+                        <button type="button" id="submitBtn" class="btn btn-primary btn-sm">保存</button>
+                        <span id="submitMsg" class="ms-2 text-muted"></span>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex flex-wrap gap-2 align-items-end">
+                    <div class="me-3">当前观察对象</div>
+                    <div>
+                        <label class="form-label">分组</label>
+                        <select id="groupSelect" class="form-select form-select-sm">
+                            <option value="asset_class" selected>按资产大类</option>
+                            <option value="market">按市场</option>
+                            <option value="category">按类别</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">数据源</label>
+                        <select id="providerFilter" class="form-select form-select-sm">
+                            <option value="">全部</option>
+                            <option>FRED</option>
+                            <option>YAHOO</option>
+                            <option>SINA</option>
+                            <option>EASTMONEY</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">状态</label>
+                        <select id="activeFilter" class="form-select form-select-sm">
+                            <option value="">全部</option>
+                            <option value="1" selected>启用</option>
+                            <option value="0">停用</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">搜索</label>
+                        <input id="searchInput" type="text" class="form-control form-control-sm" placeholder="symbol/name/market...">
+                    </div>
+                    <div class="ms-auto">
+                        <button class="btn btn-outline-secondary btn-sm" id="refreshBtn">刷新</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>symbol</th><th>名称</th><th>市场</th><th>大类</th><th>类别</th><th>币种</th>
+                                <th>类型</th><th>数据源</th><th>min_date</th><th>max_date</th><th>USD/TR</th><th>启用</th><th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">确认删除</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p id="deleteTip" class="mb-2"></p>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="chkRemoveMeta">
+              <label class="form-check-label" for="chkRemoveMeta">同时删除标的</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-danger" id="btnDoDelete">删除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    (function(){
+        const listBody = document.getElementById('listBody');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const submitBtn = document.getElementById('submitBtn');
+        const submitMsg = document.getElementById('submitMsg');
+        const formEl = document.getElementById('instrumentForm');
+        const marketSel = formEl.querySelector('select[name="market"]');
+        const currencySel = formEl.querySelector('select[name="currency"]');
+        const providerSel = formEl.querySelector('select[name="provider"]');
+
+        let cacheData = {};
+
+        function applyFilters(rows){
+            const prov = (document.getElementById('providerFilter').value || '').toUpperCase();
+            const active = document.getElementById('activeFilter').value;
+            const q = (document.getElementById('searchInput').value || '').toLowerCase();
+            return rows.filter(x => {
+                if(prov && String(x.provider||'').toUpperCase() !== prov) return false;
+                if(active !== ''){
+                    const want = active === '1';
+                    if(Boolean(x.is_active) !== want) return false;
+                }
+                const hay = `${x.symbol||''} ${x.name||''} ${x.market||''} ${x.asset_class||''} ${x.category||''}`.toLowerCase();
+                if(q && !hay.includes(q)) return false;
+                return true;
+            });
+        }
+
+        function render(){
+            const groupBy = document.getElementById('groupSelect').value;
+            const body = document.getElementById('listBody');
+            body.innerHTML = '';
+            const buckets = {};
+            const rows = applyFilters(cacheData.rows || []);
+            for(const x of rows){
+                const key = (groupBy==='market') ? (x.market||'unknown') : (groupBy==='category' ? (x.category||'unknown') : (x.asset_class||'unknown'));
+                (buckets[key] ||= []).push(x);
+            }
+            const keys = Object.keys(buckets).sort();
+            if(keys.length===0){ body.innerHTML = '<tr><td colspan="11">暂无数据</td></tr>'; return; }
+            for(const k of keys){
+                const grp = buckets[k];
+                body.insertAdjacentHTML('beforeend', `<tr class="table-secondary"><td colspan="11"><strong>${k}</strong> <span class="text-muted">(${grp.length})</span></td></tr>`);
+                grp.sort((a,b)=> (a.symbol||'').localeCompare(b.symbol||''));
+                for(const x of grp){
+                    const usdtr = `${x.has_usd?'USD':''}${(x.has_usd && x.has_usd_tr)?'/':''}${x.has_usd_tr?'USD-TR':''}` || '-';
+                    body.insertAdjacentHTML('beforeend', `<tr>
+                        <td>${x.symbol||''}</td>
+                        <td>${x.name||''}</td>
+                        <td>${x.market||''}</td>
+                        <td>${x.asset_class||''}</td>
+                        <td>${x.category||''}</td>
+                        <td>${x.currency||''}</td>
+                        <td>${x.instrument_type||''}</td>
+                        <td>${x.provider||''}</td>
+                        <td>${x.min_date||''}</td>
+                        <td>${x.max_date||''}</td>
+                        <td>${usdtr}</td>
+                        <td>${x.is_active? '是':'否'}</td>
+                        <td>
+                          <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-primary" data-action="update" data-symbol="${x.symbol}">更新</button>
+                            <button type="button" class="btn btn-outline-secondary" data-action="view" data-symbol="${x.symbol}">查看</button>
+                            <button type="button" class="btn btn-outline-danger" data-action="delete" data-symbol="${x.symbol}">删除</button>
+                          </div>
+                        </td>
+                    </tr>`);
+                }
+            }
+        }
+
+        async function load(){
+            listBody.innerHTML = '<tr><td colspan="11">加载中…</td></tr>';
+            try{
+                const r = await fetch('/api/meso/instruments');
+                const j = await r.json();
+                const data = (j && j.data) ? j.data : {};
+                // 优先使用扁平 all，回退聚合展开
+                let all = Array.isArray(data.all) ? data.all.slice() : [];
+                if(all.length === 0){
+                    ['by_asset_class','by_market','by_category'].forEach(k=>{
+                        const sec = data[k] || {};
+                        Object.values(sec).forEach(arr => { (arr||[]).forEach(x => all.push(x)); });
+                    });
+                }
+                // 去重 by symbol
+                const seen = new Set();
+                const rows = [];
+                for(const x of all){ if(seen.has(x.symbol)) continue; seen.add(x.symbol); rows.push(x); }
+                cacheData.rows = rows;
+                render();
+            }catch(e){ listBody.innerHTML = `<tr><td colspan="11">加载失败：${e}</td></tr>`; }
+        }
+
+        async function save(){
+            submitMsg.textContent = '提交中…';
+            const form = document.getElementById('instrumentForm');
+            const fd = new FormData(form);
+            try{
+                const r = await fetch('/api/meso/instruments', { method: 'POST', body: fd });
+                const j = await r.json();
+                if(j && j.success){ submitMsg.textContent = '已保存'; load(); }
+                else { submitMsg.textContent = (j && j.message) ? j.message : '保存失败'; }
+            }catch(e){ submitMsg.textContent = '保存失败'; }
+            setTimeout(()=> submitMsg.textContent='', 2500);
+        }
+
+        function applyMarketDefaults(){
+            const m = (marketSel.value || '').toUpperCase();
+            // 映射：市场→(币种, 数据源)
+            const map = {
+                'GLOBAL': { cur: 'USD', prov: 'YAHOO' },
+                'US': { cur: 'USD', prov: 'YAHOO' },
+                'EU': { cur: 'EUR', prov: 'YAHOO' },
+                'JP': { cur: 'JPY', prov: 'YAHOO' },
+                'CN': { cur: 'CNY', prov: 'EASTMONEY' },
+                'HK': { cur: 'HKD', prov: 'EASTMONEY' },
+                'EM': { cur: 'USD', prov: 'YAHOO' }
+            };
+            const cfg = map[m] || { cur: 'USD', prov: 'YAHOO' };
+            if(currencySel){ currencySel.value = cfg.cur; }
+            if(providerSel){ providerSel.value = cfg.prov; }
+        }
+
+        // 市场切换时自动联动币种与数据源
+        marketSel.addEventListener('change', applyMarketDefaults);
+
+        let pendingDeleteSymbol = null;
+        let bsDeleteModal = null;
+
+        // 绑定在列表容器上，点击删除时打开自定义对话框
+        listBody.addEventListener('click', async (e)=>{
+            // 防止事件继续冒泡到 document 级监听，避免重复触发
+            if(e && e.stopPropagation) e.stopPropagation();
+            const el = e.target;
+            if(!el) return;
+            const t = el.closest ? el.closest('button[data-action]') : el;
+            if(!t || !t.getAttribute) return;
+            const action = t.getAttribute('data-action');
+            const symbol = t.getAttribute('data-symbol');
+            if(!action || !symbol) return;
+            if(action === 'view'){
+                window.open(`/api/meso/trend_series?symbol=${encodeURIComponent(symbol)}`,'_blank');
+            } else if(action === 'delete'){
+                pendingDeleteSymbol = symbol;
+                document.getElementById('deleteTip').textContent = `确认删除 ${symbol} 的历史数据？`;
+                if(!bsDeleteModal){
+                    bsDeleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+                }
+                document.getElementById('chkRemoveMeta').checked = false;
+                bsDeleteModal.show();
+            } else if(action === 'update'){
+                // 触发刷新（增量）
+                try{
+                    const r = await fetch(`/api/meso/refresh?symbols=${encodeURIComponent(symbol)}`, { method: 'POST' });
+                    const j = await r.json();
+                    alert(j && j.data ? `已刷新: ${JSON.stringify(j.data)}` : '刷新完成');
+                    load();
+                }catch(err){ alert('刷新失败'); }
+            }
+        });
+
+        // 兜底：若列表事件监听未触发（极端情况下），在 document 上再捕获一次
+        // Modal 确认按钮：执行删除
+        document.getElementById('btnDoDelete').addEventListener('click', async ()=>{
+            if(!pendingDeleteSymbol) return;
+            const removeMeta = document.getElementById('chkRemoveMeta').checked;
+            try{
+                const url1 = `/api/meso/delete_symbol?symbol=${encodeURIComponent(pendingDeleteSymbol)}&remove_meta=${removeMeta?'1':'0'}`;
+                const r1 = await fetch(url1, { method: 'POST' });
+                const j1 = await r1.json();
+                if(j1 && j1.success){
+                    const total = (j1.detail && j1.detail.total) ? Number(j1.detail.total) : 0;
+                    const metaDeleted = Number(j1.metadata_deleted || 0);
+                    if(!removeMeta && total === 0 && metaDeleted === 0){
+                        // 自动升级提示：保持在 Modal 上不再使用原生 confirm，直接再试一次
+                        const r2 = await fetch(`/api/meso/delete_symbol?symbol=${encodeURIComponent(pendingDeleteSymbol)}&remove_meta=1`, { method: 'POST' });
+                        const j2 = await r2.json();
+                        // 结束后关闭
+                        bsDeleteModal.hide();
+                        pendingDeleteSymbol = null;
+                        load();
+                        return;
+                    }
+                    bsDeleteModal.hide();
+                    pendingDeleteSymbol = null;
+                    load();
+                } else {
+                    alert('删除失败');
+                }
+            }catch(err){ alert('删除失败'); }
+        });
+
+        document.getElementById('groupSelect').addEventListener('change', render);
+        document.getElementById('providerFilter').addEventListener('change', render);
+        document.getElementById('activeFilter').addEventListener('change', render);
+        document.getElementById('searchInput').addEventListener('input', render);
+        refreshBtn.addEventListener('click', load);
+        submitBtn.addEventListener('click', save);
+        // 初始应用当前市场默认
+        applyMarketDefaults();
+        load();
+    })();
+    </script>
+{% endblock %}
+

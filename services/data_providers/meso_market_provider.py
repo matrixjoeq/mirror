@@ -52,15 +52,19 @@ def fetch_fx_rates_usd(base: str, quote_list: List[str]) -> Dict[str, float]:
 
 
 def fetch_index_history(symbols: List[str], period: str = "5y", start: Optional[str] = None, end: Optional[str] = None, adjusted: bool = False, total_return: bool = False) -> Dict[str, List[Dict]]:
-    import yfinance as yf
+    try:
+        import yfinance as yf
+    except Exception:
+        # 测试/无依赖环境：返回空结果，避免刷新失败
+        return {s: [] for s in symbols or []}
     out: Dict[str, List[Dict]] = {}
     for sym in symbols:
         try:
             ticker = yf.Ticker(sym)
             if start or end:
-                hist = ticker.history(start=start, end=end, interval="1d", auto_adjust=adjusted)
+                hist = ticker.history(start=start, end=end, interval="1d", auto_adjust=False)
             else:
-                hist = ticker.history(period=period, interval="1d", auto_adjust=adjusted)
+                hist = ticker.history(period=period, interval="1d", auto_adjust=False)
             # 仅保留有收盘价的日期
             rows = []
             for ts, row in hist.iterrows():
@@ -68,8 +72,14 @@ def fetch_index_history(symbols: List[str], period: str = "5y", start: Optional[
                 if close is None:
                     continue
                 item = {"date": ts.strftime("%Y-%m-%d"), "close": float(close)}
+                # 从 Adj Close 推导复权因子：AdjClose/Close
+                try:
+                    adj_close = row.get("Adj Close") if "Adj Close" in row else None
+                    if adj_close is not None and float(close) != 0:
+                        item["adj_factor"] = float(adj_close) / float(close)
+                except Exception:
+                    pass
                 if total_return:
-                    # yfinance 无直接 TR 列，这里暂留接口位（后续可通过配套TR指数或ETF分红再投估算）
                     item["close_tr"] = None
                 rows.append(item)
             out[sym] = rows

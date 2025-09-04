@@ -17,19 +17,28 @@ from config import Config
 
 
 class MacroRepository:
-    def __init__(self, db_service: DatabaseService):
+    def __init__(self, db_service: DatabaseService | None = None):
         # 使用独立的宏观数据库，保证与交易数据库物理隔离
         try:
             from flask import current_app  # 延迟导入避免循环依赖
             macro_db_path = current_app.config.get('MACRO_DB_PATH', Config.MACRO_DB_PATH)
         except Exception:
             macro_db_path = Config.MACRO_DB_PATH
-        self.db = DatabaseService(macro_db_path)
+        # 内存库使用独立共享URI，避免与交易库混淆
+        if isinstance(macro_db_path, str) and macro_db_path.strip() == ':memory:':
+            macro_db_path = 'file:macro_memdb?mode=memory&cache=shared'
+        self.db = db_service or DatabaseService(macro_db_path, create_trading_schema=False)
         self._ensure_tables()
 
     def _ensure_tables(self) -> None:
         with self.db.get_connection() as conn:
             cur = conn.cursor()
+            # 清理：宏观库不应存在交易表，若存在则删除
+            try:
+                for t in ('strategies','strategy_tags','strategy_tag_relations','trades','trade_details','trade_modifications'):
+                    cur.execute(f"DROP TABLE IF EXISTS {t}")
+            except Exception:
+                pass
             # 表结构与计划文档一致（精简版，MVP可用）
             cur.execute(
                 """

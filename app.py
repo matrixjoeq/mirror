@@ -50,7 +50,7 @@ def create_app(config_name=None):
         app.config['DB_PATH'] = db_path
         app.config['MACRO_DB_PATH'] = macro_db_path
         app.config['MESO_DB_PATH'] = meso_db_path
-    app.db_service = DatabaseService(db_path)
+    app.db_service = DatabaseService(db_path, create_trading_schema=True)
     app.trading_service = TradingService(app.db_service)
     app.strategy_service = StrategyService(app.db_service)
     app.analysis_service = AnalysisService(app.db_service)

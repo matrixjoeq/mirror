@@ -15,3 +15,8 @@ def dashboard():
     return render_template('meso_dashboard.html', indexes=indexes)
 
 
+@meso_bp.route('/meso/instruments')
+def instruments_page():
+    return render_template('meso_instruments.html')
+
+

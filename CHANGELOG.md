@@ -193,4 +193,21 @@
   - 排名扩展：
     - 新增 `/api/meso/rankings/equity_market` 与 `/api/meso/rankings/equity_category?market=CN|US|...`，均支持 `return_mode=price|total`。
 
+- feat(meso): 资产大类横向对比采用“共同开市日交集”口径：自全局起始日期至今，仅纳入所有参与市场在同一日均有有效 USD 价格的数据进行比较；缺当日FX导致USD缺失的日期自动排除；仓储新增辅助 `MesoRepository.get_common_open_dates(markets, start_date)`。
+
+- feat(meso): 资产大类横向排名强制统一口径（USD / 共同开市日 / 统一价格指标price|total）；新增 API `GET /api/meso/rankings/asset_class?asof&top&return_mode=price|total`，服务侧实现 `MesoService.get_asset_class_rankings` 基于共同日期交集与 USD 序列计算复合动量并聚合到资产大类。
+
+- fix(meso-equity): 市场内排名按本币价格比较（price→close，total→close_tr），跨市场排名按 USD（price→close_usd，total→close_usd_tr）；两者均使用共同开市日交集并严格遵循所选价格指标。
+
+- ui(meso): `/meso` 仪表盘加入资产大类横向对比 MVP 表格；支持回报口径切换（price|total），显示 as-of。
+
+- feat(meso): 新增观察对象管理 API `GET /api/meso/instruments` 返回按资产大类/市场/类别聚合的标的信息、数据源与历史数据范围（min/max、USD/TR 可用性）；在 `/meso` 页面添加管理入口（JSON 链接）。
+
+- ui(meso): 新增 `GET /meso/instruments` 图形化观察对象管理页（新增/更新标的、选择历史数据源 FRED/YAHOO/SINA/EASTMONEY，查看数据范围）。API 支持 `POST /api/meso/instruments` upsert。
+
+- ui(meso): 观察对象管理页支持分组（资产大类/市场/类别）、数据源与启用状态过滤、关键词搜索与折叠式分组渲染（简化实现）。
+
+- ui(meso): 观察对象管理-新增标的表单优化：市场下拉（全球/美国/欧洲/日本/中国/香港/新兴，默认中国）、资产大类下拉（股票/债券/商品/现金，默认股票）、币种下拉（美元/欧元/日元/人民币/港币，默认人民币；位置调整至资产大类右侧）、分类字段改为“一级分类/二级分类”并调整布局到第二行开头。
+ - fix(meso): 删除交互改进——当仅删除数据返回 0 行时，前端提示并可升级为同时删除标的（remove_meta=1）；删除按钮事件委托已修复，确保动态列表中点击有效。
+
 

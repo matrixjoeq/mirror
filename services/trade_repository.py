@@ -13,7 +13,7 @@ from .database_service import DatabaseService
 
 class TradeRepository:
     def __init__(self, db: Optional[DatabaseService] = None):
-        self.db = db or DatabaseService()
+        self.db = db or DatabaseService(create_trading_schema=True)
 
     def fetch_trades(self, status: Optional[str], strategy_id: Optional[int], include_deleted: bool,
                      order_by: str, limit: Optional[int], offset: Optional[int] = None,

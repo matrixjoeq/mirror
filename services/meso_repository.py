@@ -22,12 +22,20 @@ class MesoRepository:
             db_path = current_app.config.get("MESO_DB_PATH", Config.MESO_DB_PATH)
         except Exception:
             db_path = Config.MESO_DB_PATH
-        self.db = DatabaseService(db_path)
+        if isinstance(db_path, str) and db_path.strip() == ':memory:':
+            db_path = 'file:meso_memdb?mode=memory&cache=shared'
+        self.db = DatabaseService(db_path, create_trading_schema=False)
         self._ensure_tables()
 
     def _ensure_tables(self) -> None:
         with self.db.get_connection() as conn:
             cur = conn.cursor()
+            # 清理：中观库不应存在交易表，若存在则删除
+            try:
+                for t in ('strategies','strategy_tags','strategy_tag_relations','trades','trade_details','trade_modifications'):
+                    cur.execute(f"DROP TABLE IF EXISTS {t}")
+            except Exception:
+                pass
             # 追踪标的元数据
             cur.execute(
                 """
@@ -42,6 +50,7 @@ class MesoRepository:
                     category TEXT,
                     subcategory TEXT,
                     provider TEXT,
+                    instrument_type TEXT,
                     use_adjusted INTEGER DEFAULT 1,
                     always_full_refresh INTEGER DEFAULT 0,
                     benchmark_symbol TEXT,
@@ -50,6 +59,11 @@ class MesoRepository:
                 )
                 """
             )
+            # 迁移：补充缺失列
+            try:
+                cur.execute("ALTER TABLE index_metadata ADD COLUMN instrument_type TEXT")
+            except Exception:
+                pass
             # 设置表（全局起始日期等）
             cur.execute(
                 """
@@ -70,10 +84,24 @@ class MesoRepository:
                     currency TEXT,
                     close_usd REAL,
                     close_usd_tr REAL,
+                    adj_factor REAL,
                     UNIQUE(symbol, date)
                 )
                 """
             )
+            try:
+                cur.execute("ALTER TABLE index_prices ADD COLUMN adj_factor REAL")
+            except Exception:
+                pass
+            # 旧库补列：close_tr / close_usd_tr
+            try:
+                cur.execute("ALTER TABLE index_prices ADD COLUMN close_tr REAL")
+            except Exception:
+                pass
+            try:
+                cur.execute("ALTER TABLE index_prices ADD COLUMN close_usd_tr REAL")
+            except Exception:
+                pass
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS trend_scores (
@@ -131,8 +159,8 @@ class MesoRepository:
             cur = conn.cursor()
             cur.executemany(
                 """
-                INSERT OR REPLACE INTO index_prices (symbol, date, close, close_tr, currency, close_usd, close_usd_tr)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO index_prices (symbol, date, close, close_tr, currency, close_usd, close_usd_tr, adj_factor)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -143,6 +171,7 @@ class MesoRepository:
                         r.get("currency"),
                         float(r.get("close_usd")) if r.get("close_usd") is not None else None,
                         float(r.get("close_usd_tr")) if r.get("close_usd_tr") is not None else None,
+                        float(r.get("adj_factor")) if r.get("adj_factor") is not None else None,
                     )
                     for r in rows
                 ],
@@ -248,6 +277,33 @@ class MesoRepository:
             {"date": r[0], "close": r[1], "close_tr": r[2], "currency": r[3], "close_usd": r[4], "close_usd_tr": r[5]} for r in rows
         ]
 
+    def get_price_date_range(self, symbol: str) -> dict[str, Any]:
+        """
+        返回该 symbol 的历史数据范围（最早/最晚日期），同时返回是否存在 USD 与 TR 序列。
+        """
+        with self.db.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT MIN(date), MAX(date),
+                       SUM(CASE WHEN close_usd IS NOT NULL THEN 1 ELSE 0 END),
+                       SUM(CASE WHEN close_tr IS NOT NULL THEN 1 ELSE 0 END),
+                       SUM(CASE WHEN close_usd_tr IS NOT NULL THEN 1 ELSE 0 END)
+                FROM index_prices WHERE symbol=?
+                """,
+                (symbol,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return {"min_date": None, "max_date": None, "has_usd": False, "has_tr": False, "has_usd_tr": False}
+        return {
+            "min_date": row[0],
+            "max_date": row[1],
+            "has_usd": bool(row[2] and row[2] > 0),
+            "has_tr": bool(row[3] and row[3] > 0),
+            "has_usd_tr": bool(row[4] and row[4] > 0),
+        }
+
     def fetch_scores(self, symbol: str, start: str | None = None) -> list[dict[str, Any]]:
         with self.db.get_connection() as conn:
             cur = conn.cursor()
@@ -325,8 +381,8 @@ class MesoRepository:
                 """
                 INSERT INTO index_metadata (
                     symbol, name, currency, region, market, asset_class, category, subcategory,
-                    provider, use_adjusted, always_full_refresh, benchmark_symbol, start_date_override, is_active
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    provider, instrument_type, use_adjusted, always_full_refresh, benchmark_symbol, start_date_override, is_active
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(symbol) DO UPDATE SET
                     name=excluded.name,
                     currency=excluded.currency,
@@ -336,6 +392,7 @@ class MesoRepository:
                     category=excluded.category,
                     subcategory=excluded.subcategory,
                     provider=excluded.provider,
+                    instrument_type=excluded.instrument_type,
                     use_adjusted=excluded.use_adjusted,
                     always_full_refresh=excluded.always_full_refresh,
                     benchmark_symbol=excluded.benchmark_symbol,
@@ -346,6 +403,7 @@ class MesoRepository:
                     (
                         r.get("symbol"), r.get("name"), r.get("currency"), r.get("region"), r.get("market"),
                         r.get("asset_class"), r.get("category"), r.get("subcategory"), r.get("provider"),
+                        r.get("instrument_type"),
                         1 if r.get("use_adjusted", True) else 0,
                         1 if r.get("always_full_refresh", False) else 0,
                         r.get("benchmark_symbol"), r.get("start_date_override"),
@@ -361,11 +419,11 @@ class MesoRepository:
         with self.db.get_connection() as conn:
             cur = conn.cursor()
             if only_active:
-                cur.execute("SELECT symbol,name,currency,region,market,asset_class,category,subcategory,provider,use_adjusted,always_full_refresh,benchmark_symbol,start_date_override,is_active FROM index_metadata WHERE is_active=1 ORDER BY asset_class, market, category, symbol")
+                cur.execute("SELECT symbol,name,currency,region,market,asset_class,category,subcategory,provider,instrument_type,use_adjusted,always_full_refresh,benchmark_symbol,start_date_override,is_active FROM index_metadata WHERE is_active=1 ORDER BY asset_class, market, category, symbol")
             else:
-                cur.execute("SELECT symbol,name,currency,region,market,asset_class,category,subcategory,provider,use_adjusted,always_full_refresh,benchmark_symbol,start_date_override,is_active FROM index_metadata ORDER BY asset_class, market, category, symbol")
+                cur.execute("SELECT symbol,name,currency,region,market,asset_class,category,subcategory,provider,instrument_type,use_adjusted,always_full_refresh,benchmark_symbol,start_date_override,is_active FROM index_metadata ORDER BY asset_class, market, category, symbol")
             rows = cur.fetchall()
-        keys = ["symbol","name","currency","region","market","asset_class","category","subcategory","provider","use_adjusted","always_full_refresh","benchmark_symbol","start_date_override","is_active"]
+        keys = ["symbol","name","currency","region","market","asset_class","category","subcategory","provider","instrument_type","use_adjusted","always_full_refresh","benchmark_symbol","start_date_override","is_active"]
         out: list[dict[str, Any]] = []
         for r in rows:
             item = {}
@@ -373,6 +431,53 @@ class MesoRepository:
                 item[k] = r[i]
             out.append(item)
         return out
+
+    def delete_symbol_data(self, symbol: str) -> dict:
+        """删除指定标的的所有已存数据（不包含元数据行）。大小写不敏感。
+        返回各表删除行数与总计。
+        """
+        total = 0
+        counts = {}
+        with self.db.get_connection() as conn:
+            cur = conn.cursor()
+            for table in ("trend_scores", "rs_scores", "index_prices"):
+                cur.execute(f"DELETE FROM {table} WHERE UPPER(symbol)=UPPER(?)", (symbol,))
+                n = cur.rowcount or 0
+                counts[table] = n
+                total += n
+            conn.commit()
+        return {"total": total, "by_table": counts}
+
+    def delete_index_metadata(self, symbol: str) -> int:
+        """删除元数据（管理列表中移除该标的）。大小写不敏感。"""
+        with self.db.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM index_metadata WHERE UPPER(symbol)=UPPER(?)", (symbol,))
+            n = cur.rowcount or 0
+            conn.commit()
+            return n
+
+    def update_adjusted_prices(self, symbol: str, rows: list[dict[str, Any]]) -> int:
+        if not rows:
+            return 0
+        with self.db.get_connection() as conn:
+            cur = conn.cursor()
+            cur.executemany(
+                """
+                UPDATE index_prices SET close_tr = ?, close_usd_tr = ? WHERE symbol = ? AND date = ?
+                """,
+                [
+                    (
+                        float(r.get("close_tr")) if r.get("close_tr") is not None else None,
+                        float(r.get("close_usd_tr")) if r.get("close_usd_tr") is not None else None,
+                        symbol,
+                        r.get("date"),
+                    )
+                    for r in rows
+                ],
+            )
+            conn.commit()
+            return cur.rowcount or 0
 
     def set_global_start_date(self, date_str: str) -> None:
         with self.db.get_connection() as conn:
@@ -395,5 +500,64 @@ class MesoRepository:
                 (source, refreshed_at, int(rows)),
             )
             conn.commit()
+
+    def get_common_open_dates(self, markets: list[str], start_date: str) -> list[str]:
+        """
+        返回从 start_date 到数据库最新日期，所有指定市场共同开市且有有效 USD 价格的数据日期（交集，升序）。
+        规则：
+        - 以 `index_prices` 中存在任一该市场符号且 `close_usd` 非空为“该市场当日有效”。
+        - 缺少当日 FX 导致 `close_usd` 为空的记录视为无效，该日不计入交集。
+        - 仅返回日期字符串列表（YYYY-MM-DD），升序。
+        注：市场到符号的映射应来自元数据（后续 index_metadata 表）；当前实现以 symbol 前缀/集合外部注入为主，先提供市场级占位查询：按 symbol LIKE 近似匹配。
+        """
+        if not markets:
+            return []
+        with self.db.get_connection() as conn:
+            cur = conn.cursor()
+            market_to_dates: dict[str, set[str]] = {}
+            for m in markets:
+                # 占位：常见市场符号特征（可在引入 index_metadata 后替换为精确映射）
+                like_patterns = {
+                    'US': ['%'],  # 不过滤：匹配所有
+                    'HK': ['%.HK', '^HSI', '^HSCE', '^HSTECH'],  # LIKE 中 '.' 为字面量，无需转义
+                    'CN': ['.SS%', '.SZ%', '000300.SS']
+                }.get(m.upper(), ['%'])
+                dates: set[str] = set()
+                for pat in like_patterns:
+                    try:
+                        # SQLite 不支持正则，这里仅对包含式 LIKE 提供占位；复杂前缀待元数据落地
+                        if '%' in pat or '_' in pat:
+                            cur.execute(
+                                """
+                                SELECT DISTINCT date FROM index_prices
+                                WHERE date >= ? AND close_usd IS NOT NULL AND symbol LIKE ?
+                                ORDER BY date
+                                """,
+                                (start_date, pat)
+                            )
+                        else:
+                            cur.execute(
+                                """
+                                SELECT DISTINCT date FROM index_prices
+                                WHERE date >= ? AND close_usd IS NOT NULL AND symbol = ?
+                                ORDER BY date
+                                """,
+                                (start_date, pat)
+                            )
+                        rows = cur.fetchall()
+                        for r in rows:
+                            dates.add(str(r[0]))
+                    except Exception:
+                        continue
+                market_to_dates[m] = dates
+            # 交集
+            it = iter(market_to_dates.values())
+            try:
+                common = set(next(it))
+            except StopIteration:
+                return []
+            for s in it:
+                common &= s
+            return sorted(common)
 
 

@@ -15,7 +15,7 @@ from config import Config
 class DatabaseService:
     """数据库操作服务"""
     
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None, create_trading_schema: bool = True):
         if db_path:
             self.db_path = db_path
         else:
@@ -28,7 +28,25 @@ class DatabaseService:
                     self.db_path = Config.DB_PATH
             except Exception:
                 self.db_path = Config.DB_PATH
-        self.init_database()
+        # 处理内存数据库：为 ':memory:' 或 file:...mode=memory 创建持久连接，避免连接关闭导致表丢失
+        self._use_uri = False
+        self._is_memory = False
+        original = str(self.db_path)
+        if isinstance(self.db_path, str) and self.db_path.strip() == ':memory:':
+            self._is_memory = True
+        elif isinstance(self.db_path, str) and self.db_path.startswith('file:') and 'mode=memory' in self.db_path:
+            self._use_uri = True
+            self._is_memory = True
+        elif isinstance(self.db_path, str) and self.db_path.startswith('file:'):
+            self._use_uri = True
+        # 为内存库创建一个持久连接供整个生命周期复用
+        self._persistent_conn = None
+        if self._is_memory:
+            self._persistent_conn = sqlite3.connect(self.db_path, uri=self._use_uri)
+            self._persistent_conn.row_factory = sqlite3.Row
+        # 由调用方明确控制是否创建交易相关表，避免跨库污染
+        if create_trading_schema:
+            self.init_database()
     
     def init_database(self):
         """初始化数据库表"""
@@ -211,7 +229,13 @@ class DatabaseService:
     @contextmanager
     def get_connection(self):
         """获取数据库连接的上下文管理器"""
-        conn = sqlite3.connect(self.db_path)
+        # 复用内存库的持久连接；文件库按需创建短连接
+        if self._persistent_conn is not None:
+            conn = self._persistent_conn
+            _is_persistent = True
+        else:
+            conn = sqlite3.connect(self.db_path, uri=self._use_uri)
+            _is_persistent = False
         conn.row_factory = sqlite3.Row
         # 启用外键约束，保证参照完整性
         try:
@@ -253,12 +277,19 @@ class DatabaseService:
                 return getattr(self._conn, item)
 
             def close(self):
-                return self._conn.close()
+                # 内存库持久连接不关闭；文件库正常关闭
+                try:
+                    if not _is_persistent:
+                        return self._conn.close()
+                    return None
+                except Exception:
+                    return None
 
         safe_conn = _SafeConnection(conn, self._pre_execute_check)
         try:
             yield safe_conn
         finally:
+            # 持久连接不关闭；文件库连接关闭在 close 中处理
             safe_conn.close()
 
     # -------------------------

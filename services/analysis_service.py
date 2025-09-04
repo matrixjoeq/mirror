@@ -18,7 +18,7 @@ class AnalysisService:
     """分析服务"""
 
     def __init__(self, db_service: Optional[DatabaseService] = None):
-        self.db = db_service or DatabaseService()
+        self.db = db_service or DatabaseService(create_trading_schema=True)
         self.strategy_service = StrategyService(self.db)
 
     def calculate_strategy_score(self, strategy_id: Optional[int] = None, strategy: Optional[str] = None,
