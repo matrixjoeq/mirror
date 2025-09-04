@@ -35,7 +35,8 @@ class MacroService:
 
     def __init__(self, db_service: DatabaseService):
         self.db = db_service
-        self.repo = MacroRepository(db_service)
+        # 使用独立的宏观数据库，避免在交易库上执行宏观表的清理/确保逻辑
+        self.repo = MacroRepository()
 
     # --------- 对外接口（API/页面使用） ---------
     def get_snapshot(self, view: str = "value", date: Optional[str] = None, window: Optional[str] = None, nocache: bool = False) -> Dict[str, Any]:

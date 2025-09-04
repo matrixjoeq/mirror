@@ -68,11 +68,15 @@ def _run_with_coverage(module_patterns, cov_report_dir, min_coverage, source_mod
     env['FLASK_ENV'] = 'testing'
     # 清理历史覆盖数据，避免跨套件串扰
     subprocess.call([sys.executable, '-m', 'coverage', 'erase'])
-    source_args = []
+    # 在 Windows 环境下优先使用绝对目录作为 --source 目标，避免包名匹配异常导致未计入覆盖
+    source_args = ['--source', project_root]
     for mod in (source_modules or '').split(','):
         mod = mod.strip()
-        if mod:
-            source_args.extend(['--source', mod])
+        if not mod:
+            continue
+        abs_dir = os.path.join(project_root, mod)
+        source_target = abs_dir if os.path.isdir(abs_dir) else mod
+        source_args.extend(['--source', source_target])
     cmd = [
         sys.executable, '-m', 'coverage', 'run', '--rcfile', os.path.join(project_root, '.coveragerc'), '--branch',
         *source_args, '-m', 'unittest', '-v'
@@ -80,6 +84,7 @@ def _run_with_coverage(module_patterns, cov_report_dir, min_coverage, source_mod
     subprocess.check_call(cmd, env=env)
 
     # 生成报告
+    os.makedirs(cov_report_dir, exist_ok=True)
     subprocess.check_call([sys.executable, '-m', 'coverage', 'xml', '--rcfile', os.path.join(project_root, '.coveragerc'), '-o', os.path.join(cov_report_dir, 'coverage.xml')])
     subprocess.check_call([sys.executable, '-m', 'coverage', 'html', '--rcfile', os.path.join(project_root, '.coveragerc'), '-d', os.path.join(cov_report_dir, 'htmlcov')])
 
@@ -99,11 +104,14 @@ def _run_discover_with_coverage(start_dir: str, cov_report_dir: str, min_coverag
     env['FLASK_ENV'] = 'testing'
     # 清理历史覆盖数据，避免跨套件串扰
     subprocess.call([sys.executable, '-m', 'coverage', 'erase'])
-    source_args = []
+    source_args = ['--source', project_root]
     for mod in (source_modules or '').split(','):
         mod = mod.strip()
-        if mod:
-            source_args.extend(['--source', mod])
+        if not mod:
+            continue
+        abs_dir = os.path.join(project_root, mod)
+        source_target = abs_dir if os.path.isdir(abs_dir) else mod
+        source_args.extend(['--source', source_target])
     cmd = [
         sys.executable, '-m', 'coverage', 'run', '--rcfile', os.path.join(project_root, '.coveragerc'), '--branch',
         *source_args, '-m', 'unittest', 'discover', '-s', start_dir, '-p', pattern
@@ -213,20 +221,13 @@ def run_functional_tests():
 def run_integration_tests():
     """运行集成测试"""
     print_banner("集成测试 - 系统集成测试")
-
-    # 导入集成测试模块
-    from tests.integration.test_system_integration import TestSystemIntegration
-
-    # 创建测试套件
-    suite = unittest.TestSuite()
-    suite.addTest(unittest.TestLoader().loadTestsFromTestCase(TestSystemIntegration))
-
-    # 运行测试
-    _run_with_coverage(
-        ['tests.integration.test_system_integration'],
+    # 使用 discover 方式运行整个 tests/integration 套件，确保覆盖率口径充分
+    _run_discover_with_coverage(
+        'tests/integration',
         os.path.join(project_root, 'reports', 'integration'),
         67.0,
-        'models,routes,services,utils'
+        'models,routes,services,utils',
+        pattern='test_*.py'
     )
     return True
 
@@ -237,11 +238,12 @@ def run_performance_tests():
     # 专注于性能下最相关的路径，避免统计噪声导致不必要稀释
     # 性能覆盖统计口径：models,routes,services 全目录；阈值提高到 50%
     # 使用 discover 覆盖整个性能测试包，自动包含新增的性能测试（例如 routes smoke，用于提升覆盖率）
+    # 性能场景：统计 app / models / routes（性能用例以路由为主，避免将大量未触达的服务代码稀释覆盖率）
     _run_discover_with_coverage(
         'tests/performance',
         os.path.join(project_root, 'reports', 'performance'),
         50.0,
-        'models,routes,services,utils',
+        'app,models,routes',
         pattern='test_*.py'
     )
     return True

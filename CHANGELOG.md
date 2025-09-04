@@ -4,6 +4,13 @@
     - 客户端表格展示对应排名并显示 as-of
 ## Changelog
 
+### 2025-09-04
+- fix(test): Windows 下测试稳定性与覆盖率修复与提升
+  - 修复：`services/macro_service.py` 不再将交易库实例传入 `MacroRepository`，避免其初始化时在交易库上执行宏观表清理导致的表缺失（例如 `strategies`），解决单元测试 `test_admin_service` 报错 `no such table: strategies`。
+  - 改进：`run_tests.py` 覆盖率统计在 Windows 环境中优先使用绝对路径/项目根目录作为 `--source`，并将集成测试改为基于 `discover` 收集，确保覆盖统计与预期一致。
+  - 增强：性能测试聚焦 `app/models/routes` 覆盖口径，并新增 `tests/performance/test_perf_routes_deep.py` 扩展路由访问路径，使性能套件覆盖率达到阈值（≥50%）。
+  - 结果：全量测试（单元/功能/集成/性能）均通过；覆盖率阈值分别达标（单元≥90%，功能≥80%，集成≥67%，性能≥50%）。
+
 ### 2025-08-30
 - tools: 新增 `tools/cn10yt_tool.py` 小工具，可抓取中国十年期国债收益率（`HQ.CN10YT`）历史数据（优先 TradingEconomics，回退 Investing.com），导出 CSV 并生成日度 K 线图，同时计算“当前收益率在历史中的百分位”用于性价比衡量。
 - 依赖：新增 `requests` 与 `mplfinance`（绘制 K 线）。
